@@ -7,13 +7,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-//public enum Result{
-//    SUCCESS,NOT_EXISTS, WRONG_PASSWORD,EMAIL_ALREADY_EXISTS,INVALID_PASSWORD,ERROR
-//}
-
 @Service
 public class UserService {
- private final UserRepository userRepository;
+    private final UserRepository userRepository;
 
     public UserService(UserRepository userRepository) {
         this.userRepository = userRepository;
@@ -24,18 +20,25 @@ public class UserService {
     }
 
     public UserEntity findByEmail(String email) {
+        System.out.println("Finding user by email: " + email);
         return userRepository.findByEmail(email);
     }
+
     public Result check_entry(String email, String password) {
-        UserEntity user = userRepository.findByEmail(email);
+        System.out.println("Checking entry for email: " + email);
+        UserEntity user = findByEmail(email);
         if (user == null) {
+            System.out.println("User not found");
             return Result.NOT_EXISTS;
         }
-        if(user.getPassword().equals(password)) {
+        if (user.getPassword().equals(password)) {
+            System.out.println("Password matches");
             return Result.SUCCESS;
         }
+        System.out.println("Wrong password");
         return Result.WRONG_PASSWORD;
     }
+
     public Result createUser(UserEntity user) {
         UserEntity userEntity = userRepository.findByEmail(user.getEmail());
         if (userRepository.findByEmail(user.getEmail()) != null) {

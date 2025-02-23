@@ -2,20 +2,23 @@ package com.example.mediaid.api;
 
 import com.example.mediaid.bl.UserService;
 import com.example.mediaid.dal.UserEntity;
+import com.example.mediaid.dto.LoginRequest;
 import org.springframework.http.ResponseEntity;
 import com.example.mediaid.bl.UserService.Result;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @CrossOrigin(origins = "http://localhost:3000")
 @RestController
 public class APIController {
     private UserService userService;
 
+    public APIController(UserService userService) {
+        this.userService = userService;
+    }
+
     @PostMapping("/signIn")
     public ResponseEntity<?> signIn(@RequestBody UserEntity user) {
+        System.out.println("SignIn request received for email: " + user.getEmail());
         Result result = userService.createUser(user);
         switch (result) {
             case SUCCESS:
@@ -27,6 +30,21 @@ public class APIController {
             case ERROR:
             default:
                 return ResponseEntity.status(500).body("An unexpected error occurred");
+        }
+    }
+
+    @PostMapping("/logIn")
+    public ResponseEntity<?> logIn(@RequestBody LoginRequest user) {
+        System.out.println("LogIn request received for email: " + user.getMail());
+        Result result = userService.check_entry(user.getMail(), user.getPassword());
+        switch (result) {
+            case SUCCESS:
+                return ResponseEntity.ok("User logged in successfully");
+            case NOT_EXISTS:
+                return ResponseEntity.status(409).body("user not exists");
+            default:
+            case WRONG_PASSWORD:
+                return ResponseEntity.status(400).body("Wrong password");
         }
     }
 }
