@@ -2,8 +2,8 @@ import './App.css';
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import LoginScreen from './loginScreen';
 import MainMenu from './mainMenu';
-import DiagnosisScreen from './DiagnosisScreen';
 import SignIn from './signIn';
+import UploadData from './uploadData';
 
 function App() {
   return (
@@ -12,7 +12,7 @@ function App() {
         <Route path="/" element={<LoginScreen />} />
         <Route path="/signIn" element={<SignIn />} />
         <Route path="/login" element={<LoginScreen />} />
-        <Route path="/uploadData" element={<DiagnosisScreen />} />
+        <Route path="/uploadData" element={<UploadData />} />
       </Routes>
     </Router>
   );
