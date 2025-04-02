@@ -39,32 +39,32 @@ public class APIController {
     public ResponseEntity<?> logIn(@RequestBody LoginRequest user) {
         System.out.println("LogIn request received for email: " + user.getMail());
         Result result = userService.check_entry(user.getMail(), user.getPassword());
-        switch (result) {
-            case SUCCESS:
-                return ResponseEntity.ok("User logged in successfully");
-            case NOT_EXISTS:
-                return ResponseEntity.status(409).body("user not exists");
-            default:
-            case WRONG_PASSWORD:
-                return ResponseEntity.status(400).body("Wrong password");
-        }
+        return switch (result) {
+            case SUCCESS -> ResponseEntity.ok("User logged in successfully");
+            case NOT_EXISTS -> ResponseEntity.status(409).body("user not exists");
+            default -> ResponseEntity.status(400).body("Wrong password");
+        };
     }
 
 @PostMapping("/uploadData")
 public ResponseEntity<?> uploadData(@ModelAttribute DiagnosisData diagnosisData) {
     try {
+        StringBuilder responseMessage = new StringBuilder("Data uploaded successfully.\n");
+
         if (diagnosisData.getText() != null) {
-            System.out.println("Text: " + diagnosisData.getText());
+            responseMessage.append("Text: ").append(diagnosisData.getText()).append("\n");
         }
         if (diagnosisData.getImage() != null) {
-            System.out.println("Image received: " + diagnosisData.getImage().getOriginalFilename());
+            responseMessage.append("Image received: ").append(diagnosisData.getImage().getOriginalFilename()).append("\n");
+            String ocrResult = diagnosisData.analyzeImage(); // הפעלת ה-OCR
+            System.out.println(ocrResult);
+            responseMessage.append("OCR Result: ").append(ocrResult).append("\n");
         }
         if (diagnosisData.getAudio() != null) {
-            System.out.println("Audio received: " + diagnosisData.getAudio().getOriginalFilename());
+            responseMessage.append("Audio received: ").append(diagnosisData.getAudio().getOriginalFilename()).append("\n");
         }
 
-        // החזרת תגובה ללקוח
-        return new ResponseEntity<>("Data uploaded successfully", HttpStatus.OK);
+        return new ResponseEntity<>(responseMessage.toString(), HttpStatus.OK);
     } catch (Exception e) {
         e.printStackTrace();
         return new ResponseEntity<>("Error processing upload: " + e.getMessage(), HttpStatus.BAD_REQUEST);

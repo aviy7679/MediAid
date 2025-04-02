@@ -1,6 +1,6 @@
-
 package com.example.mediaid.dto;
 
+import com.example.mediaid.bl.OCRAnalysis;
 import org.springframework.web.multipart.MultipartFile;
 
 public class DiagnosisData {
@@ -32,5 +32,13 @@ public class DiagnosisData {
 
     public void setAudio(MultipartFile audio) {
         this.audio = audio;
+    }
+
+    public String analyzeImage() {
+        if (image != null && !image.isEmpty()) {
+            OCRAnalysis analysis = new OCRAnalysis(image);
+            return analysis.processOCR();
+        }
+        return "No image provided";
     }
 }
