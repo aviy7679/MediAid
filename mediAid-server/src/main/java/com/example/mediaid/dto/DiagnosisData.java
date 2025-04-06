@@ -1,6 +1,6 @@
 package com.example.mediaid.dto;
 
-import com.example.mediaid.bl.OCRAnalysis;
+import com.example.mediaid.bl.extract_data_from_EHR.Text_from_image;
 import org.springframework.web.multipart.MultipartFile;
 
 public class DiagnosisData {
@@ -36,7 +36,7 @@ public class DiagnosisData {
 
     public String analyzeImage() {
         if (image != null && !image.isEmpty()) {
-            OCRAnalysis analysis = new OCRAnalysis(image);
+            Text_from_image analysis = new Text_from_image(image);
             return analysis.processOCR();
         }
         return "No image provided";
