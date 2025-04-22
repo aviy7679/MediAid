@@ -4,7 +4,7 @@ verified_skin_conditions_umls = {
     "C0151908": "Edema",
     "C0009814": "Contusion",
     "C0011168": "Petechiae",
-    "C0033774": "Pruritus",
+    "C0033774": "Pruritic",
     "C1962945": "Burning sensation",
     "C0043144": "Warmth",
     "C0175778": "Desquamation",
