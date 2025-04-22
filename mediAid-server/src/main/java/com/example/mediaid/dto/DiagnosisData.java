@@ -35,10 +35,10 @@ public class DiagnosisData {
     }
 
     public String analyzeImage() {
-        if (image != null && !image.isEmpty()) {
-            Text_from_image analysis = new Text_from_image(image);
-            return analysis.processOCR();
-        }
+//        if (image != null && !image.isEmpty()) {
+//            Text_from_image analysis = new Text_from_image(image);
+//            return analysis.processOCR();
+//        }
         return "No image provided";
     }
 }

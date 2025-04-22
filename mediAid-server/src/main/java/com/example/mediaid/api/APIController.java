@@ -9,7 +9,7 @@ import org.springframework.http.ResponseEntity;
 import com.example.mediaid.bl.UserService.Result;
 import org.springframework.web.bind.annotation.*;
 
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3001", "http://localhost:3002"})
+@CrossOrigin
 @RestController
 public class APIController {
     private UserService userService;

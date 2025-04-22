@@ -9,19 +9,15 @@ import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+
 @Service
 public class Text_from_image {
-    private MultipartFile image;
 
-    public Text_from_image(MultipartFile file) {
-        this.image = file;
-    }
-
-    public String processOCR() {
+    public String processOCR(MultipartFile image) {
         try {
             // יצירת קובץ זמני מהתמונה שהועלתה
             Path tempDir = Files.createTempDirectory("ocr-temp");
-            Path tempImage = tempDir.resolve("image" + getFileExtension());
+            Path tempImage = tempDir.resolve("image" + getFileExtension(image));
             image.transferTo(tempImage.toFile());
 
             System.out.println("temp picture: " + tempImage.toAbsolutePath());
@@ -88,8 +84,8 @@ public class Text_from_image {
         }
     }
 
-    //הוצאת סוג הקובץ. ברירת מחדל:png
-    private String getFileExtension() {
+    // הוצאת סוג הקובץ. ברירת מחדל: png
+    private String getFileExtension(MultipartFile image) {
         String originalFilename = image.getOriginalFilename();
         return originalFilename != null && originalFilename.contains(".")
                 ? "." + originalFilename.substring(originalFilename.lastIndexOf(".") + 1)
