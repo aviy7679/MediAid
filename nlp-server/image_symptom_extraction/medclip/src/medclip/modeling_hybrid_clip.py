@@ -18,7 +18,7 @@ from typing import Optional, Tuple
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
-from configuration_hybrid_clip import HybridCLIPConfig
+from .configuration_hybrid_clip import HybridCLIPConfig
 from flax.core.frozen_dict import FrozenDict
 from transformers import FLAX_MODEL_MAPPING, FlaxCLIPVisionModel
 from transformers.modeling_flax_utils import FlaxPreTrainedModel

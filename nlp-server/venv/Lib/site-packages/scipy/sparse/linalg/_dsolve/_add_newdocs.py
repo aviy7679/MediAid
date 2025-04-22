@@ -34,12 +34,13 @@ add_newdoc('scipy.sparse.linalg._dsolve._superlu', 'SuperLU',
     The LU decomposition can be used to solve matrix equations. Consider:
 
     >>> import numpy as np
-    >>> from scipy.sparse import csc_matrix, linalg as sla
-    >>> A = csc_matrix([[1,2,0,4],[1,0,0,1],[1,0,2,1],[2,2,1,0.]])
+    >>> from scipy.sparse import csc_array
+    >>> from scipy.sparse.linalg import splu
+    >>> A = csc_array([[1,2,0,4], [1,0,0,1], [1,0,2,1], [2,2,1,0.]])
 
     This can be solved for a given right-hand side:
 
-    >>> lu = sla.splu(A)
+    >>> lu = splu(A)
     >>> b = np.array([1, 2, 3, 4])
     >>> x = lu.solve(b)
     >>> A.dot(x)
@@ -50,31 +51,31 @@ add_newdoc('scipy.sparse.linalg._dsolve._superlu', 'SuperLU',
     indices:
 
     >>> lu.perm_r
-    array([0, 2, 1, 3], dtype=int32)
+    array([2, 1, 3, 0], dtype=int32)  # may vary
     >>> lu.perm_c
-    array([2, 0, 1, 3], dtype=int32)
+    array([0, 1, 3, 2], dtype=int32)  # may vary
 
     The L and U factors are sparse matrices in CSC format:
 
-    >>> lu.L.A
-    array([[ 1. ,  0. ,  0. ,  0. ],
-           [ 0. ,  1. ,  0. ,  0. ],
-           [ 0. ,  0. ,  1. ,  0. ],
-           [ 1. ,  0.5,  0.5,  1. ]])
-    >>> lu.U.A
-    array([[ 2.,  0.,  1.,  4.],
-           [ 0.,  2.,  1.,  1.],
-           [ 0.,  0.,  1.,  1.],
-           [ 0.,  0.,  0., -5.]])
+    >>> lu.L.toarray()
+    array([[ 1. ,  0. ,  0. ,  0. ],  # may vary
+           [ 0.5,  1. ,  0. ,  0. ],
+           [ 0.5, -1. ,  1. ,  0. ],
+           [ 0.5,  1. ,  0. ,  1. ]])
+    >>> lu.U.toarray()
+    array([[ 2. ,  2. ,  0. ,  1. ],  # may vary
+           [ 0. , -1. ,  1. , -0.5],
+           [ 0. ,  0. ,  5. , -1. ],
+           [ 0. ,  0. ,  0. ,  2. ]])
 
     The permutation matrices can be constructed:
 
-    >>> Pr = csc_matrix((np.ones(4), (lu.perm_r, np.arange(4))))
-    >>> Pc = csc_matrix((np.ones(4), (np.arange(4), lu.perm_c)))
+    >>> Pr = csc_array((np.ones(4), (lu.perm_r, np.arange(4))))
+    >>> Pc = csc_array((np.ones(4), (np.arange(4), lu.perm_c)))
 
     We can reassemble the original matrix:
 
-    >>> (Pr.T @ (lu.L @ lu.U) @ Pc.T).A
+    >>> (Pr.T @ (lu.L @ lu.U) @ Pc.T).toarray()
     array([[ 1.,  2.,  0.,  4.],
            [ 1.,  0.,  0.,  1.],
            [ 1.,  0.,  2.,  1.],
@@ -109,14 +110,14 @@ add_newdoc('scipy.sparse.linalg._dsolve._superlu', 'SuperLU', ('solve',
 add_newdoc('scipy.sparse.linalg._dsolve._superlu', 'SuperLU', ('L',
     """
     Lower triangular factor with unit diagonal as a
-    `scipy.sparse.csc_matrix`.
+    `scipy.sparse.csc_array`.
 
     .. versionadded:: 0.14.0
     """))
 
 add_newdoc('scipy.sparse.linalg._dsolve._superlu', 'SuperLU', ('U',
     """
-    Upper triangular factor as a `scipy.sparse.csc_matrix`.
+    Upper triangular factor as a `scipy.sparse.csc_array`.
 
     .. versionadded:: 0.14.0
     """))
@@ -135,18 +136,12 @@ add_newdoc('scipy.sparse.linalg._dsolve._superlu', 'SuperLU', ('perm_c',
     """
     Permutation Pc represented as an array of indices.
 
-    The column permutation matrix can be reconstructed via:
-
-    >>> Pc = np.zeros((n, n))
-    >>> Pc[np.arange(n), perm_c] = 1
+    See the `SuperLU` docstring for details.
     """))
 
 add_newdoc('scipy.sparse.linalg._dsolve._superlu', 'SuperLU', ('perm_r',
     """
     Permutation Pr represented as an array of indices.
 
-    The row permutation matrix can be reconstructed via:
-
-    >>> Pr = np.zeros((n, n))
-    >>> Pr[perm_r, np.arange(n)] = 1
+    See the `SuperLU` docstring for details.
     """))

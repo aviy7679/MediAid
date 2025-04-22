@@ -1,4 +1,5 @@
 import spacy
+"""
 from scispacy.umls_linking import  UmlsEntityLinker
 
 #משתנים פרטיים
@@ -33,3 +34,4 @@ def normalize_symptoms(symptoms_text):
         "canonical_name": None,
         "cui": None,
     }
+    """

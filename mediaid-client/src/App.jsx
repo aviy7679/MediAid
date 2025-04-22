@@ -1,13 +1,17 @@
 import { useState } from 'react'
-import './App.css'
+import { BrowserRouter } from 'react-router-dom';
+import './index.css'
 import LoginScreen from './components/LoginScreen'
+import AppRoutes from './AppRoutes';
 
 function App() {
   const [count, setCount] = useState(0)
 
   return (
     <>
-      <LoginScreen />
+     <BrowserRouter>
+     <AppRoutes />
+    </BrowserRouter>
     </>
   )
 }

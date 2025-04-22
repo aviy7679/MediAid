@@ -1,9 +1,12 @@
-from medclip import MedCLIPModel, MedCLIPProcessor
+from medclip import MedCLIPModel,MedCLIPProcessor, MedCLIPVisionModelViT
 from PIL import Image
+from .medclip.src.medclip.modeling_hybrid_clip import FlaxHybridCLIP
+
 import torch
 
 def load_model():
-    model=MedCLIPModel.from_pretrained("./medclip")
+    model = MedCLIPModel(vision_cls=MedCLIPVisionModelViT)
+    model.load_ckpt("./medclip/medclip-vit-pretrained.pt")
     processor=MedCLIPProcessor.from_pretrained("./medclip")
     model.eval()
     return model, processor

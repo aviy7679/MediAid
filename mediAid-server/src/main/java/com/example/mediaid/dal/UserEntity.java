@@ -12,7 +12,7 @@ public class UserEntity {
     private String lastName;
     @Column(unique=true)
     private String email;
-    @Column(length = 8)
+//    @Column(length = 8)
 private String password;
     public UserEntity() {}
 

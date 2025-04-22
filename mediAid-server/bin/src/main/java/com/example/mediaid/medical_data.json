@@ -1,0 +1,83 @@
+{
+  "chronic_diseases": {
+    "diabetes_type1": false,
+    "diabetes_type2": false,
+    "hypertension": false,
+    "asthma": false,
+    "heart_failure": false,
+    "coronary_artery_disease": false,
+    "copd": false,
+    "rheumatoid_arthritis": false,
+    "obesity": false,
+    "cancer": "",
+    "epilepsy": false,
+    "chronic_kidney_disease": false,
+    "chronic_liver_disease": false,
+    "multiple_sclerosis": false,
+    "parkinson": false,
+    "osteoporosis": false,
+    "psoriasis": false,
+    "crohn_disease": false
+  },
+  "surgery_history": {
+    "heart": {
+      "bypass_surgery": false,
+      "catheterization": false,
+      "pacemaker_implantation": false
+    },
+    "orthopedic": {
+      "hip_knee_replacement": false,
+      "fracture_repair": false,
+      "spine_surgery": false
+    },
+    "neurological": {
+      "brain_tumor_surgery": false,
+      "epilepsy_surgery": false
+    },
+    "other": {
+      "c_section": false,
+      "tonsillectomy": false
+    }
+  },
+  "allergies": {
+    "food": [],
+    "medications": [],
+    "environmental": []
+  },
+  "general_metrics": {
+    "weight": null,
+    "height": null,
+    "bmi": null,
+    "blood_pressure": null,
+    "pulse": null
+  },
+  "blood_tests": {
+    "hemoglobin": null,
+    "white_blood_cells": null,
+    "platelets": null,
+    "creatinine": null,
+    "blood_sugar": null,
+    "total_cholesterol": null,
+    "triglycerides": null,
+    "bilirubin": null
+  },
+  "kidney_function": {
+    "bun": null,
+    "gfr": null
+  },
+  "liver_function": {
+    "alt": null,
+    "ast": null
+  },
+  "medications": {
+    "cardiovascular": [],
+    "diabetes": [],
+    "respiratory": [],
+    "gastrointestinal": [],
+    "depression_anxiety": [],
+    "thyroid": [],
+    "autoimmune": [],
+    "blood_thinners": [],
+    "neurological": []
+  }
+}

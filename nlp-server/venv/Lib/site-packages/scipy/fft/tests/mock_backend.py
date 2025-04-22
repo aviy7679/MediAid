@@ -1,14 +1,19 @@
 import numpy as np
+import scipy.fft
+import threading
 
 class _MockFunction:
     def __init__(self, return_value = None):
-        self.number_calls = 0
+        self.number_calls = threading.local()
         self.return_value = return_value
-        self.last_args = ([], {})
+        self.last_args = threading.local()
 
     def __call__(self, *args, **kwargs):
-        self.number_calls += 1
-        self.last_args = (args, kwargs)
+        if not hasattr(self.number_calls, 'c'):
+            self.number_calls.c = 0
+
+        self.number_calls.c += 1
+        self.last_args.l = (args, kwargs)
         return self.return_value
 
 
@@ -53,7 +58,39 @@ ifht = _MockFunction(np.random.random(10))
 __ua_domain__ = "numpy.scipy.fft"
 
 
+_implements = {
+    scipy.fft.fft: fft,
+    scipy.fft.fft2: fft2,
+    scipy.fft.fftn: fftn,
+    scipy.fft.ifft: ifft,
+    scipy.fft.ifft2: ifft2,
+    scipy.fft.ifftn: ifftn,
+    scipy.fft.rfft: rfft,
+    scipy.fft.rfft2: rfft2,
+    scipy.fft.rfftn: rfftn,
+    scipy.fft.irfft: irfft,
+    scipy.fft.irfft2: irfft2,
+    scipy.fft.irfftn: irfftn,
+    scipy.fft.hfft: hfft,
+    scipy.fft.hfft2: hfft2,
+    scipy.fft.hfftn: hfftn,
+    scipy.fft.ihfft: ihfft,
+    scipy.fft.ihfft2: ihfft2,
+    scipy.fft.ihfftn: ihfftn,
+    scipy.fft.dct: dct,
+    scipy.fft.idct: idct,
+    scipy.fft.dctn: dctn,
+    scipy.fft.idctn: idctn,
+    scipy.fft.dst: dst,
+    scipy.fft.idst: idst,
+    scipy.fft.dstn: dstn,
+    scipy.fft.idstn: idstn,
+    scipy.fft.fht: fht,
+    scipy.fft.ifht: ifht
+}
+
+
 def __ua_function__(method, args, kwargs):
-    fn = globals().get(method.__name__)
+    fn = _implements.get(method)
     return (fn(*args, **kwargs) if fn is not None
             else NotImplemented)
