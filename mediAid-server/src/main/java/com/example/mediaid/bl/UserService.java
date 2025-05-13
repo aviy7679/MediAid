@@ -1,6 +1,6 @@
 package com.example.mediaid.bl;
 
-import com.example.mediaid.dal.UserEntity;
+import com.example.mediaid.dal.Users;
 import com.example.mediaid.dal.UserRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -15,18 +15,18 @@ public class UserService {
         this.userRepository = userRepository;
     }
 
-    public List<UserEntity> findAll() {
+    public List<Users> findAll() {
         return userRepository.findAll();
     }
 
-    public UserEntity findByEmail(String email) {
+    public Users findByEmail(String email) {
         System.out.println("Finding user by email: " + email);
         return userRepository.findByEmail(email);
     }
 
     public Result check_entry(String email, String password) {
         System.out.println("Checking entry for email: " + email);
-        UserEntity user = findByEmail(email);
+        Users user = findByEmail(email);
         if (user == null) {
             System.out.println("User not found");
             return Result.NOT_EXISTS;
@@ -39,8 +39,8 @@ public class UserService {
         return Result.WRONG_PASSWORD;
     }
 
-    public Result createUser(UserEntity user) {
-        UserEntity userEntity = userRepository.findByEmail(user.getEmail());
+    public Result createUser(Users user) {
+        Users users = userRepository.findByEmail(user.getEmail());
         if (userRepository.findByEmail(user.getEmail()) != null) {
             return Result.EMAIL_ALREADY_EXISTS;
         }

@@ -1,9 +1,11 @@
 package com.example.mediaid.api;
 
 import com.example.mediaid.bl.UserService;
-import com.example.mediaid.dal.UserEntity;
+import com.example.mediaid.bl.extract_data_from_EHR.Text_from_image;
+import com.example.mediaid.dal.Users;
 import com.example.mediaid.dto.DiagnosisData;
 import com.example.mediaid.dto.LoginRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import com.example.mediaid.bl.UserService.Result;
@@ -13,13 +15,15 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 public class APIController {
     private UserService userService;
+    @Autowired
+    private Text_from_image textFromImage;
 
     public APIController(UserService userService) {
         this.userService = userService;
     }
 
     @PostMapping("/signIn")
-    public ResponseEntity<?> signIn(@RequestBody UserEntity user) {
+    public ResponseEntity<?> signIn(@RequestBody Users user) {
         System.out.println("SignIn request received for email: " + user.getEmail());
         Result result = userService.createUser(user);
         switch (result) {
@@ -46,28 +50,30 @@ public class APIController {
         };
     }
 
-@PostMapping("/uploadData")
-public ResponseEntity<?> uploadData(@ModelAttribute DiagnosisData diagnosisData) {
-    try {
-        StringBuilder responseMessage = new StringBuilder("Data uploaded successfully.\n");
+    @PostMapping("/uploadData")
+    public ResponseEntity<?> uploadData(@ModelAttribute DiagnosisData diagnosisData) {
+        try {
+            StringBuilder responseMessage = new StringBuilder("Data uploaded successfully.\n");
 
-        if (diagnosisData.getText() != null) {
-            responseMessage.append("Text: ").append(diagnosisData.getText()).append("\n");
-        }
-        if (diagnosisData.getImage() != null) {
-            responseMessage.append("Image received: ").append(diagnosisData.getImage().getOriginalFilename()).append("\n");
-            String ocrResult = diagnosisData.analyzeImage(); // הפעלת ה-OCR
-            System.out.println(ocrResult);
-            responseMessage.append("OCR Result: ").append(ocrResult).append("\n");
-        }
-        if (diagnosisData.getAudio() != null) {
-            responseMessage.append("Audio received: ").append(diagnosisData.getAudio().getOriginalFilename()).append("\n");
-        }
+            if (diagnosisData.getText() != null) {
+                responseMessage.append("Text: ").append(diagnosisData.getText()).append("\n");
+            }
+            if (diagnosisData.getImage() != null) {
+                responseMessage.append("Image received: ").append(diagnosisData.getImage().getOriginalFilename()).append("\n");
 
-        return new ResponseEntity<>(responseMessage.toString(), HttpStatus.OK);
-    } catch (Exception e) {
-        e.printStackTrace();
-        return new ResponseEntity<>("Error processing upload: " + e.getMessage(), HttpStatus.BAD_REQUEST);
+                // קריאה לעיבוד OCR
+                String ocrResult = textFromImage.processOCR(diagnosisData.getImage());
+                System.out.println("OCR Result: " + ocrResult);
+                responseMessage.append("OCR Result: ").append(ocrResult).append("\n");
+            }
+            if (diagnosisData.getAudio() != null) {
+                responseMessage.append("Audio received: ").append(diagnosisData.getAudio().getOriginalFilename()).append("\n");
+            }
+
+            return new ResponseEntity<>(responseMessage.toString(), HttpStatus.OK);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ResponseEntity<>("Error processing upload: " + e.getMessage(), HttpStatus.BAD_REQUEST);
+        }
     }
-}
 }

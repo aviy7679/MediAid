@@ -1,7 +1,9 @@
 import React from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 export default function SignIn() {
+    const navigate=useNavigate();
     const handleSubmit = async (event) => {
         event.preventDefault();
         const data = new FormData(event.target);
@@ -11,6 +13,7 @@ export default function SignIn() {
             const response = await axios.post('http://localhost:8080/signIn', formJSON);
             console.log(response);
             console.log(response.data);
+            navigate('/homePage');
         } catch (error) {
             console.error('Error during sign in:', error);
         }

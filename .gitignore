@@ -1,0 +1,15 @@
+umls-2024AB-full
+
+textvenv/
+imagvenv/
+.medclip_venv/
+
+venv/
+*.venv/
+env/
+.env/
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd

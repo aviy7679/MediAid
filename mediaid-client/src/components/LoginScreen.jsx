@@ -6,7 +6,7 @@ export default function LoginScreen() {
     const [errorMessage, setErrorMessage] = useState('');
     const navigate = useNavigate();
 
-    const handleSignIn = async (event) => {
+    const handleLogIn = async (event) => {
         event.preventDefault();
         const data = new FormData(event.target);
         const formJSON = Object.fromEntries(data.entries());
@@ -14,6 +14,7 @@ export default function LoginScreen() {
             const response = await axios.post('http://localhost:8080/logIn', formJSON);
             console.log(response);
             setErrorMessage('');
+            navigate('/homePage');
         } catch (error) {
             if (error.response) {
                 console.error('Error:', error.response.data);
@@ -41,7 +42,7 @@ export default function LoginScreen() {
                     </button>
                 </div>
 
-                <form onSubmit={handleSignIn} className="space-y-4">
+                <form onSubmit={handleLogIn} className="space-y-4">
                     <div>
                         <label className="block text-gray-700">Email</label>
                         <input

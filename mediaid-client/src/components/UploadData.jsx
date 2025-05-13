@@ -30,6 +30,7 @@ export default function UploadData() {
         return () => {
             // עוצר את המצלמה
             if (cameraStream) {
+                //מעבר על כל הערוצים של הזרם: וידיאו, אודיו ועצירת כולם.
                 cameraStream.getTracks().forEach(track => track.stop());
             }
             
@@ -212,25 +213,26 @@ export default function UploadData() {
     // שליחת הנתונים לשרת
     const handleSubmit = async () => {
         setUploadStatus("");
-        
+    
         const formData = new FormData();
         if (data.text) formData.append("text", data.text);
         if (data.image) formData.append("image", data.image);
         if (data.audio) formData.append("audio", data.audio);
-        
+    
         try {
             setUploadStatus("Uploading...");
-            
+    
             const response = await fetch('http://localhost:8080/uploadData', {
                 method: "POST",
                 body: formData
             });
-            
+    
             if (response.ok) {
-                setUploadStatus("Data uploaded successfully!");
+                const responseText = await response.text();
+                setUploadStatus(responseText);
                 // ניקוי הטופס
                 setData({ text: "", image: null, audio: null });
-                
+    
                 // ניקוי משאבים
                 if (capturedImage) {
                     URL.revokeObjectURL(capturedImage);
@@ -443,6 +445,19 @@ export default function UploadData() {
                         color: uploadStatus.includes("success") ? "#3c763d" : "#a94442"
                     }}>
                         {uploadStatus}
+                    </div>
+                )}
+                {/* OCR Result Section */}
+                {uploadStatus.includes("OCR Result") && (
+                    <div style={{ 
+                        margin: "15px 0", 
+                        padding: "10px", 
+                        borderRadius: "4px", 
+                        backgroundColor: "#eef5ff",
+                        color: "#0056b3"
+                    }}>
+                        <h4>OCR Result:</h4>
+                        <p>{uploadStatus.split("OCR Result: ")[1]}</p>
                     </div>
                 )}
             </div>
