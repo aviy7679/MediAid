@@ -2,52 +2,96 @@ package com.example.mediaid.api;
 
 import com.example.mediaid.bl.UserService;
 import com.example.mediaid.bl.extract_data_from_EHR.Text_from_image;
-import com.example.mediaid.dal.Users;
+import com.example.mediaid.dal.User;
 import com.example.mediaid.dto.DiagnosisData;
 import com.example.mediaid.dto.LoginRequest;
+import com.example.mediaid.dto.SignupRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import com.example.mediaid.bl.UserService.Result;
 import org.springframework.web.bind.annotation.*;
 
-@CrossOrigin
+import java.time.LocalDate;
+
+@CrossOrigin(origins = "*", allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST})
 @RestController
 public class APIController {
-    private UserService userService;
+    private final UserService userService;
+
     @Autowired
     private Text_from_image textFromImage;
 
+    @Autowired
     public APIController(UserService userService) {
         this.userService = userService;
     }
 
-    @PostMapping("/signIn")
-    public ResponseEntity<?> signIn(@RequestBody Users user) {
-        System.out.println("SignIn request received for email: " + user.getEmail());
-        Result result = userService.createUser(user);
-        switch (result) {
-            case SUCCESS:
-                return ResponseEntity.ok("User created successfully");
-            case EMAIL_ALREADY_EXISTS:
-                return ResponseEntity.status(409).body("Email already exists");
-            case INVALID_PASSWORD:
-                return ResponseEntity.status(400).body("Invalid password length");
-            case ERROR:
-            default:
-                return ResponseEntity.status(500).body("An unexpected error occurred");
+    @PostMapping("/signUp")
+    public ResponseEntity<?> signUp(@RequestBody SignupRequest signupRequest) {
+        try {
+            System.out.println("SignUp request received for email: " + signupRequest.getEmail());
+
+            // Map the DTO to User entity
+            User user = new User();
+            user.setEmail(signupRequest.getEmail());
+            // Note: we're setting the plain text password which will be hashed in the service
+            user.setPasswordHash(signupRequest.getPassword());
+            user.setUsername(signupRequest.getUsername());
+            user.setGender(signupRequest.getGender());
+
+            // Handle date of birth if it's missing or in incorrect format
+            String dateOfBirth = signupRequest.getDateOfBirth();
+            if (dateOfBirth != null && !dateOfBirth.isEmpty()) {
+                try {
+                    user.setDateOfBirth(LocalDate.parse(dateOfBirth));
+                } catch (Exception e) {
+                    return ResponseEntity.status(400).body("Invalid date format for dateOfBirth");
+                }
+            }
+
+            // Handle optional fields
+            if (signupRequest.getHeight() != null) {
+                user.setHeight(Float.valueOf(signupRequest.getHeight()));
+            }
+
+            if (signupRequest.getWeight() != null) {
+                user.setWeight(Float.valueOf(signupRequest.getWeight()));
+            }
+
+            Result result = userService.createUser(user);
+
+            switch (result) {
+                case SUCCESS:
+                    return ResponseEntity.ok("User created successfully");
+                case EMAIL_ALREADY_EXISTS:
+                    return ResponseEntity.status(409).body("Email already exists");
+                case INVALID_PASSWORD:
+                    return ResponseEntity.status(400).body("Invalid password length");
+                case ERROR:
+                default:
+                    return ResponseEntity.status(500).body("An unexpected error occurred");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("Server error: " + e.getMessage());
         }
     }
 
     @PostMapping("/logIn")
     public ResponseEntity<?> logIn(@RequestBody LoginRequest user) {
-        System.out.println("LogIn request received for email: " + user.getMail());
-        Result result = userService.check_entry(user.getMail(), user.getPassword());
-        return switch (result) {
-            case SUCCESS -> ResponseEntity.ok("User logged in successfully");
-            case NOT_EXISTS -> ResponseEntity.status(409).body("user not exists");
-            default -> ResponseEntity.status(400).body("Wrong password");
-        };
+        try {
+            System.out.println("LogIn request received for email: " + user.getMail());
+            Result result = userService.checkEntry(user.getMail(), user.getPassword());
+            return switch (result) {
+                case SUCCESS -> ResponseEntity.ok("User logged in successfully");
+                case NOT_EXISTS -> ResponseEntity.status(404).body("User does not exist");
+                default -> ResponseEntity.status(401).body("Wrong password");
+            };
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("Server error: " + e.getMessage());
+        }
     }
 
     @PostMapping("/uploadData")
@@ -61,7 +105,7 @@ public class APIController {
             if (diagnosisData.getImage() != null) {
                 responseMessage.append("Image received: ").append(diagnosisData.getImage().getOriginalFilename()).append("\n");
 
-                // קריאה לעיבוד OCR
+                // Call OCR processing
                 String ocrResult = textFromImage.processOCR(diagnosisData.getImage());
                 System.out.println("OCR Result: " + ocrResult);
                 responseMessage.append("OCR Result: ").append(ocrResult).append("\n");
