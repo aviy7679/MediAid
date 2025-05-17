@@ -36,7 +36,7 @@ export default function LoginScreen() {
                     <h1 className="text-2xl font-bold text-gray-800">Login to MediAid</h1>
                     <button
                         className="text-sm text-blue-600 hover:underline"
-                        onClick={() => navigate('/signIn')}
+                        onClick={() => navigate('/signUp')}
                     >
                         Sign Up
                     </button>

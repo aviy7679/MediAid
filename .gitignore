@@ -3,6 +3,8 @@ umls-2024AB-full
 textvenv/
 imagvenv/
 .medclip_venv/
+medclip_model/
+medclip_model
 
 venv/
 *.venv/

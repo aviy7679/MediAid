@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -45,10 +46,13 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .csrf(csrf -> csrf.disable())
+                .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
+                        .requestMatchers("/signUp").permitAll()  // הוספת הרשאה לנתיב ההרשמה
+                        .requestMatchers("/logIn").permitAll()   // הוספת הרשאה לנתיב ההתחברות
+                        .requestMatchers("/uploadData").permitAll() // אופציונלי, בהתאם לצורך
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session
@@ -56,8 +60,6 @@ public class SecurityConfig {
                 )
                 .httpBasic(httpBasic -> {}); // או אל תשתמש בכלל אם זה לא נדרש
 
-
-
         return http.build();
     }
-}
+    }
