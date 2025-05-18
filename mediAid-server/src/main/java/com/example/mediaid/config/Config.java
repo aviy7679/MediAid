@@ -1,4 +1,4 @@
-package com.example.mediaid.utils;
+package com.example.mediaid.config;
 
 import java.io.FileInputStream;
 import java.io.IOException;
