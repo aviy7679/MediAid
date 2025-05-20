@@ -11,6 +11,8 @@ export default function MainMenu() {
             <button onClick={()=>navigate("/uploadUserData")}>Update and Modify Medical Information</button>
             <br />
             <button>Log Out</button>
+            <br />
+            <button onClick={()=>navigate("/fillUserData")}>Disease Lookup</button>
         </div>
     );
 }

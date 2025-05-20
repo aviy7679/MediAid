@@ -257,7 +257,6 @@ public class UmlsMedicationProcessor implements CommandLineRunner {
                             Medication medication = new Medication();
                             medication.setCui(entry.getKey());
                             medication.setName(name);
-                            // שים לב שלא משתמשים בעמודה 'description'
 
                             entityManager.persist(medication);
                         }
