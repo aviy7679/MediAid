@@ -1,21 +1,15 @@
-
 package com.example.mediaid.dal.UMLS_terms;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "medications")
 @Data
-public class Medication {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "medication_id")
-    private Long id;
+@NoArgsConstructor
+public class Medication extends BaseUmlsEntity {
 
-    @Column(name = "cui", length = 8, nullable = false, unique = true)
-    private String cui;
-
-    @Column(name = "name", nullable = false)
-    private String name;
 }
