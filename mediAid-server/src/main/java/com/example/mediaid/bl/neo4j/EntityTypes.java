@@ -23,7 +23,7 @@ public class EntityTypes {
     public static final String LABORATORY_TEST = "LaboratoryTest";
     public static final String DIAGNOSTIC_PROCEDURE = "DiagnosticProcedure";
 
-    // מקורות נתונים מועדפים - חשוב מאוד לסינון!
+    // מקורות נתונים מועדפים - לסינון
     public static final Set<String> PREFERRED_SOURCES = new HashSet<>(Arrays.asList(
             "SNOMEDCT_US",  // המקור האמין ביותר לקשרים קליניים
             "RXNORM",       // מקור מצוין לתרופות ויחסי תרופות

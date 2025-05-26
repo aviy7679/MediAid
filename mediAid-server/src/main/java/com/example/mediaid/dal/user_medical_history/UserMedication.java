@@ -41,8 +41,8 @@ public class UserMedication {
     @Column(name = "administration_route")
     private String administrationRoute;
 
-    @Column(name = "status")
-    private String status;
+    @Column(name = "is_active")
+    private Boolean isActive;
 
     @Column(name = "notes")
     private String notes;

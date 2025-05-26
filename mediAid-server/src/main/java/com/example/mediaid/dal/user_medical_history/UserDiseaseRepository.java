@@ -32,16 +32,3 @@ public interface UserDiseaseRepository extends JpaRepository<UserDisease, Long> 
     @Query("SELECT COUNT(ud) FROM UserDisease ud WHERE ud.user.userId = :userId AND ud.endDate IS NULL")
     Long countActiveDiseasesForUser(@Param("userId") UUID userId);
 }
-
-// ================================================================
-// Additional Utility Repositories
-// ================================================================
-
-// Generic Search Repository Interface
-package com.example.mediaid.dal.repository;
-
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-
-import java.util.List;
-

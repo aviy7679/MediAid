@@ -22,8 +22,6 @@ public interface UserMedicationRepository extends JpaRepository<UserMedication, 
 
     List<UserMedication> findByUser_UserIdAndIsActive(UUID userId, Boolean isActive);
 
-    List<UserMedication> findByUser_UserIdAndPrescribingDoctor(UUID userId, String doctor);
-
     List<UserMedication> findByUser_UserIdAndStartDateBetween(UUID userId, LocalDate startDate, LocalDate endDate);
 
     @Query("SELECT um FROM UserMedication um WHERE um.user.userId = :userId AND um.isActive = true")
@@ -35,6 +33,4 @@ public interface UserMedicationRepository extends JpaRepository<UserMedication, 
     @Query("SELECT um FROM UserMedication um WHERE um.user.userId = :userId AND um.endDate < CURRENT_DATE")
     List<UserMedication> findExpiredMedicationsForUser(@Param("userId") UUID userId);
 
-    @Query("SELECT DISTINCT um.prescribingDoctor FROM UserMedication um WHERE um.user.userId = :userId")
-    List<String> findDoctorsForUser(@Param("userId") UUID userId);
 }

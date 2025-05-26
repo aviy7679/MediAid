@@ -3,6 +3,7 @@ package com.example.mediaid.bl.neo4j;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * סוגי הקשרים במערכת והמיפויים שלהם מ-UMLS
@@ -101,98 +102,51 @@ public class RelationshipTypes {
      * מחשב את משקל הקשר לפי סוג הקשר ומקור הנתונים
      */
     public static double calculateRelationshipWeight(String rela, String sab) {
-        double baseWeight = 0.5;
-
-        // התאמת משקל לפי סוג היחס
-        switch (rela.toLowerCase()) {
+        double baseWeight = switch (rela.toLowerCase()) {
             // טיפולים
-            case "treats":
-                baseWeight = 0.9;
-                break;
-            case "may_treat":
-                baseWeight = 0.6;
-                break;
+            case "treats" -> 0.9;
+            case "may_treat" -> 0.6;
 
             // התוויות נגד וסכנות
-            case "contraindicated_with":
-            case "ci_with":
-            case "has_contraindication":
-                baseWeight = 0.95;
-                break;
+            case "contraindicated_with", "ci_with", "has_contraindication" -> 0.95;
 
             // אינטראקציות
-            case "interacts_with":
-            case "drug_interaction_of":
-                baseWeight = 0.85;
-                break;
+            case "interacts_with", "drug_interaction_of" -> 0.85;
 
             // סימפטומים
-            case "finding_of":
-            case "manifestation_of":
-                baseWeight = 0.8;
-                break;
-            case "has_finding":
-            case "has_manifestation":
-                baseWeight = 0.8;
-                break;
+            case "finding_of", "manifestation_of" -> 0.8;
+            case "has_finding", "has_manifestation" -> 0.8;
 
             // תופעות לוואי
-            case "adverse_effect_of":
-            case "has_adverse_effect":
-            case "side_effect_of":
-            case "has_side_effect":
-                baseWeight = 0.75;
-                break;
+            case "adverse_effect_of", "has_adverse_effect", "side_effect_of", "has_side_effect" -> 0.75;
 
             // מניעה
-            case "prevents":
-            case "may_prevent":
-                baseWeight = 0.7;
-                break;
+            case "prevents", "may_prevent" -> 0.7;
 
             // סיבוכים
-            case "complication_of":
-            case "has_complication":
-                baseWeight = 0.8;
-                break;
+            case "complication_of", "has_complication" -> 0.8;
 
             // החמרה
-            case "aggravates":
-            case "worsens":
-                baseWeight = 0.75;
-                break;
+            case "aggravates", "worsens" -> 0.75;
 
             // גורמי סיכון
-            case "predisposes":
-            case "risk_factor_for":
-            case "increases_risk_of":
-                baseWeight = 0.7;
-                break;
+            case "predisposes", "risk_factor_for", "increases_risk_of" -> 0.7;
 
             // אבחון
-            case "diagnosed_by":
-            case "diagnoses":
-                baseWeight = 0.85;
-                break;
+            case "diagnosed_by", "diagnoses" -> 0.85;
 
             // רצף התקדמות
-            case "precedes":
-            case "follows":
-                baseWeight = 0.6;
-                break;
+            case "precedes", "follows" -> 0.6;
 
             // מיקום אנטומי
-            case "location_of":
-            case "has_location":
-                baseWeight = 0.9;
-                break;
+            case "location_of", "has_location" -> 0.9;
 
             // מנגנון פעולה ביולוגי
-            case "inhibits":
-            case "stimulates":
-                baseWeight = 0.75;
-                break;
-        }
+            case "inhibits", "stimulates" -> 0.75;
+            default -> 0.5;
+
+            // התאמת משקל לפי סוג היחס
+        };
 
         // התאמת משקל לפי מקור הנתונים
         switch (sab) {
@@ -216,4 +170,70 @@ public class RelationshipTypes {
         // נרמול המשקל ל-0-1
         return Math.min(0.99, baseWeight);
     }
+    /**
+     * בדיקה אם הקשר מתאים לטיפוסי הצמתים
+     */
+    public static boolean isValidRelationshipForNodeTypes(
+            Set<String> diseaseCuis, Set<String> medicationCuis, Set<String> symptomCuis,
+            Set<String> riskFactorCuis, Set<String> procedureCuis, Set<String> anatomicalCuis,
+            Set<String> labTestCuis, Set<String> biologicalFunctionCuis,
+            String cui1, String cui2, String relType) {
+
+        return switch (relType) {
+            case INDICATES ->
+                // סימפטום ← מחלה
+                    symptomCuis.contains(cui1) && diseaseCuis.contains(cui2);
+            case HAS_SYMPTOM ->
+                // מחלה ← סימפטום
+                    diseaseCuis.contains(cui1) && symptomCuis.contains(cui2);
+            case TREATS ->
+                // תרופה ← מחלה
+                    medicationCuis.contains(cui1) && diseaseCuis.contains(cui2);
+            case TREATED_BY ->
+                // מחלה ← תרופה
+                    diseaseCuis.contains(cui1) && medicationCuis.contains(cui2);
+            case CONTRAINDICATED_FOR ->
+                // תרופה ← מחלה/מצב
+                    medicationCuis.contains(cui1) && (diseaseCuis.contains(cui2) || riskFactorCuis.contains(cui2));
+            case INTERACTS_WITH ->
+                // תרופה ← תרופה
+                    medicationCuis.contains(cui1) && medicationCuis.contains(cui2);
+            case SIDE_EFFECT_OF ->
+                // סימפטום ← תרופה
+                    symptomCuis.contains(cui1) && medicationCuis.contains(cui2);
+            case CAUSES_SIDE_EFFECT ->
+                // תרופה ← סימפטום
+                    medicationCuis.contains(cui1) && symptomCuis.contains(cui2);
+            case MAY_PREVENT ->
+                // תרופה ← מחלה
+                    medicationCuis.contains(cui1) && diseaseCuis.contains(cui2);
+            case COMPLICATION_OF ->
+                // מחלה ← מחלה
+                    diseaseCuis.contains(cui1) && diseaseCuis.contains(cui2);
+            case AGGRAVATES ->
+                // מחלה/סימפטום ← מחלה
+                    (diseaseCuis.contains(cui1) || symptomCuis.contains(cui1)) && diseaseCuis.contains(cui2);
+            case RISK_FACTOR_FOR, INCREASES_RISK_OF ->
+                // מצב/מחלה ← מחלה
+                    (riskFactorCuis.contains(cui1) || diseaseCuis.contains(cui1)) && diseaseCuis.contains(cui2);
+            case DIAGNOSED_BY ->
+                // מחלה ← בדיקה/פרוצדורה
+                    diseaseCuis.contains(cui1) && (labTestCuis.contains(cui2) || procedureCuis.contains(cui2));
+            case DIAGNOSES ->
+                // בדיקה/פרוצדורה ← מחלה
+                    (labTestCuis.contains(cui1) || procedureCuis.contains(cui1)) && diseaseCuis.contains(cui2);
+            case PRECEDES ->
+                // מחלה/סימפטום ← מחלה/סימפטום
+                    (diseaseCuis.contains(cui1) || symptomCuis.contains(cui1)) &&
+                            (diseaseCuis.contains(cui2) || symptomCuis.contains(cui2));
+            case LOCATED_IN ->
+                // מחלה/סימפטום ← איבר
+                    (diseaseCuis.contains(cui1) || symptomCuis.contains(cui1)) && anatomicalCuis.contains(cui2);
+            case INHIBITS, STIMULATES ->
+                // תרופה ← פונקציה ביולוגית
+                    medicationCuis.contains(cui1) && biologicalFunctionCuis.contains(cui2);
+            default -> false;
+        };
+    }
 }
+
