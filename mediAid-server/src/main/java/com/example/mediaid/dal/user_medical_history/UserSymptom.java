@@ -32,10 +32,10 @@ public class UserSymptom {
     @Column(name = "end_date")
     private LocalDate endDate;
 
-    @Column(name = "severity") // mild, moderate, severe
+    @Column(name = "severity") // רמת חומרה
     private String severity;
 
-    @Column(name = "frequency") // once, daily, weekly, etc.
+    @Column(name = "frequency") // תדירות הופעה
     private String frequency;
 
     @Column(name = "is_active")

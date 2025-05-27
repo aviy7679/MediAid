@@ -27,17 +27,17 @@ public class UserDisease {
     private Disease disease;
 
     @Column(name = "diagnosis_date")
-    private LocalDate diagnosisDate;
+    private LocalDate diagnosisDate;  //תאריך אבחון
 
     @Column(name = "end_date")
-    private LocalDate endDate;
+    private LocalDate endDate;   //תאריך החלמה
 
     @Column(name = "status")
-    private String status;
+    private String status;   //סטטוס
 
     @Column(name = "severity")
-    private String severity;
+    private String severity;   //רמת חומרה
 
     @Column(name = "notes")
-    private String notes;
+    private String notes;   //הערות
 }

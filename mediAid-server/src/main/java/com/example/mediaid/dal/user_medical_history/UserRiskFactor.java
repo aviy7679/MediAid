@@ -27,9 +27,9 @@ public class UserRiskFactor {
     private RiskFactor riskFactor;
 
     @Column(name = "identified_date")
-    private LocalDate identifiedDate;
+    private LocalDate identifiedDate;   //תאריך הוספה
 
-    @Column(name = "risk_level") // low, moderate, high
+    @Column(name = "risk_level") // רמת סיכון
     private String riskLevel;
 
     @Column(name = "is_active")

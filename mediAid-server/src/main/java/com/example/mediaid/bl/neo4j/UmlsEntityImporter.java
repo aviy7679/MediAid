@@ -28,6 +28,9 @@ public class UmlsEntityImporter extends UmlsImporter{
     private final SymptomRepository symptomRepository;
     private final RiskFactorRepository riskFactorRepository;
     private final ProcedureRepository procedureRepository;
+    private final AnatomicalStructureRepository anatomicalStructureRepository;
+    private final LabTestRepository labTestRepository;
+    private final BiologicalFunctionRepository biologicalFunctionRepository;
 
     @Autowired
     public UmlsEntityImporter(Driver neo4jDriver,
@@ -35,13 +38,19 @@ public class UmlsEntityImporter extends UmlsImporter{
                               MedicationRepository medicationRepository,
                               SymptomRepository symptomRepository,
                               RiskFactorRepository riskFactorRepository,
-                              ProcedureRepository procedureRepository) {
+                              ProcedureRepository procedureRepository,
+                              AnatomicalStructureRepository anatomicalStructureRepository,
+                              LabTestRepository labTestRepository,
+                              BiologicalFunctionRepository biologicalFunctionRepository) {
         super(neo4jDriver);
         this.diseaseRepository = diseaseRepository;
         this.medicationRepository = medicationRepository;
         this.symptomRepository = symptomRepository;
         this.riskFactorRepository = riskFactorRepository;
         this.procedureRepository = procedureRepository;
+        this.anatomicalStructureRepository = anatomicalStructureRepository;
+        this.labTestRepository = labTestRepository;
+        this.biologicalFunctionRepository = biologicalFunctionRepository;
     }
 
     public void importAllEntitiesFromDB(){
@@ -52,7 +61,11 @@ public class UmlsEntityImporter extends UmlsImporter{
                     new EntityImportConfig<>("Medications", medicationRepository, EntityTypes.MEDICATION, this::mapMedication),
                     new EntityImportConfig<>("Symptoms", symptomRepository, EntityTypes.SYMPTOM, this::mapSymptom),
                     new EntityImportConfig<>("Risk factors", riskFactorRepository, EntityTypes.RISK_FACTOR,this::mapRiskFactor),
-                    new EntityImportConfig<>("Procedures", procedureRepository, EntityTypes.PROCEDURE, this::mapProcedure)
+                    new EntityImportConfig<>("Procedures", procedureRepository, EntityTypes.PROCEDURE, this::mapProcedure),
+                    new EntityImportConfig<>("Anatomical Structures", anatomicalStructureRepository, EntityTypes.ANATOMICAL_STRUCTURE, this::mapAnatomicalStructure),
+                    new EntityImportConfig<>("Lab Tests", labTestRepository, EntityTypes.LABORATORY_TEST, this::mapLabTest),
+                    new EntityImportConfig<>("Biological Functions", biologicalFunctionRepository, EntityTypes.BIOLOGICAL_FUNCTION, this::mapBiologicalFunction)
+
             );
 
             //ייבוא כל סוגי הישויות
@@ -108,6 +121,7 @@ public class UmlsEntityImporter extends UmlsImporter{
                     logger.error("Error while processing entity {}", entity, e);
                 }
             }
+            pageNumber++;
 
         }while (page.hasNext());
 
@@ -192,6 +206,29 @@ public class UmlsEntityImporter extends UmlsImporter{
         entity.put("name", procedure.getName());
         entity.put("type", EntityTypes.PROCEDURE);
 
+        return entity;
+    }
+    private Map<String, Object> mapAnatomicalStructure(AnatomicalStructure anatomicalStructure) {
+        Map<String, Object> entity = new HashMap<>();
+        entity.put("cui", anatomicalStructure.getCui());
+        entity.put("name", anatomicalStructure.getName());
+        entity.put("type", EntityTypes.ANATOMICAL_STRUCTURE);
+        return entity;
+    }
+
+    private Map<String, Object> mapLabTest(LabTest labTest) {
+        Map<String, Object> entity = new HashMap<>();
+        entity.put("cui", labTest.getCui());
+        entity.put("name", labTest.getName());
+        entity.put("type", EntityTypes.LABORATORY_TEST);
+        return entity;
+    }
+
+    private Map<String, Object> mapBiologicalFunction(BiologicalFunction biologicalFunction) {
+        Map<String, Object> entity = new HashMap<>();
+        entity.put("cui", biologicalFunction.getCui());
+        entity.put("name", biologicalFunction.getName());
+        entity.put("type", EntityTypes.BIOLOGICAL_FUNCTION);
         return entity;
     }
 

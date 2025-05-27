@@ -27,23 +27,23 @@ public class UserMedication {
     private Medication medication;
 
     @Column(name = "start_date")
-    private LocalDate startDate;
+    private LocalDate startDate;  //תאריך התחלה
 
     @Column(name = "end_date")
-    private LocalDate endDate;
+    private LocalDate endDate;    //תאריך סיום
 
     @Column(name = "dosage")
-    private String dosage;
+    private String dosage;       //מינון
 
     @Column(name = "frequency")
-    private String frequency;
+    private String frequency;    //תדירות
 
     @Column(name = "administration_route")
-    private String administrationRoute;
+    private String administrationRoute;    //דרך מתן התרופה
 
     @Column(name = "is_active")
-    private Boolean isActive;
+    private Boolean isActive;   //האם פעיל
 
     @Column(name = "notes")
-    private String notes;
+    private String notes;      //הערות
 }
