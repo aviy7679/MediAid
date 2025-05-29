@@ -78,6 +78,6 @@ with open(output_file, 'w', encoding='utf-8') as out_f:
         out_f,
         indent=2,
         ensure_ascii=False
-    )2
+    )
 
 print(f"✔ נוצר קובץ {output_file} עם {len(disease_terms)} מחלות.")

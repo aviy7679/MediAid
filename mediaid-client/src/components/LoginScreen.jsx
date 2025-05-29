@@ -1,31 +1,50 @@
 import axios from 'axios';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { auth } from '../authUtils';
 
 export default function LoginScreen() {
     const [errorMessage, setErrorMessage] = useState('');
     const navigate = useNavigate();
+    const [isLoading, setIsLoading] = useState(false);
 
     const handleLogIn = async (event) => {
         event.preventDefault();
+        setIsLoading(true);
+        setErrorMessage('');
+        
         const data = new FormData(event.target);
         const formJSON = Object.fromEntries(data.entries());
+        
         try {
             const response = await axios.post('http://localhost:8080/logIn', formJSON);
-            console.log(response);
-            setErrorMessage('');
+            console.log('Login response:', response.data);
+            
+            // Save token and user data
+            auth.setToken(response.data.token);
+            auth.setUser({
+                username: response.data.username,
+                email: response.data.email
+            });
+            
             navigate('/homePage');
+            
         } catch (error) {
-            if (error.response) {
-                console.error('Error:', error.response.data);
-                setErrorMessage(`Error: ${error.response.data}`);
+            console.error('Login error:', error);
+            
+            if (error.response?.data?.message) {
+                setErrorMessage(error.response.data.message);
+            } else if (error.response?.data?.error) {
+                setErrorMessage(error.response.data.error);
+            } else if (error.response?.data) {
+                setErrorMessage(typeof error.response.data === 'string' ? error.response.data : 'Login failed');
             } else if (error.request) {
-                console.error('No response received:', error.request);
                 setErrorMessage('No response received from the server');
             } else {
-                console.error('Error setting up request:', error.message);
                 setErrorMessage('Error setting up request');
             }
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -64,10 +83,8 @@ export default function LoginScreen() {
                     </div>
 
                     <div className="flex justify-end">
-                        <button
-                            type="button"
-                            className="text-sm text-blue-500 hover:underline"
-                        >
+                        <button type="button"
+                            className="text-sm text-blue-500 hover:underline">
                             I forgot my password
                         </button>
                     </div>

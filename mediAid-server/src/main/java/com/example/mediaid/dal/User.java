@@ -1,6 +1,7 @@
 
 package com.example.mediaid.dal;
 
+import com.example.mediaid.dal.user_medical_history.RiskFactorEnums.*;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -33,9 +34,38 @@ public class User {
 
     private String gender;
 
-    private Float height;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "smoking_status")
+    private SmokingStatus smokingStatus;
 
-    private Float weight;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "alcohol_consumption")
+    private AlcoholConsumption alcoholConsumption;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "physical_activity")
+    private PhysicalActivity physicalActivity;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "family_heart_disease")
+    private FamilyHeartDisease familyHeartDisease;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "family_cancer")
+    private FamilyCancer familyCancer;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "blood_pressure")
+    private BloodPressure bloodPressure;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "stress_level")
+    private StressLevel stressLevel;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "age_group")
+    private AgeGroup ageGroup;
+
 
     @CreationTimestamp
     private LocalDateTime createdAt;
@@ -43,5 +73,47 @@ public class User {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+
+    public double calculateOverallRiskScore() {
+        double totalRisk = 0.0;
+        int factorCount = 0;
+
+        if (smokingStatus != null) {
+            totalRisk += smokingStatus.getWeight();
+            factorCount++;
+        }
+        if (alcoholConsumption != null) {
+            totalRisk += alcoholConsumption.getWeight();
+            factorCount++;
+        }
+        if (physicalActivity != null) {
+            totalRisk += physicalActivity.getWeight();
+            factorCount++;
+        }
+        if (familyHeartDisease != null) {
+            totalRisk += familyHeartDisease.getWeight();
+            factorCount++;
+        }
+        if (familyCancer != null) {
+            totalRisk += familyCancer.getWeight();
+            factorCount++;
+        }
+
+        if (bloodPressure != null) {
+            totalRisk += bloodPressure.getWeight();
+            factorCount++;
+        }
+        if (stressLevel != null) {
+            totalRisk += stressLevel.getWeight();
+            factorCount++;
+        }
+        if (ageGroup != null) {
+            totalRisk += ageGroup.getWeight();
+            factorCount++;
+        }
+
+
+        return factorCount > 0 ? totalRisk / factorCount : 0.0;
+    }
 
 }

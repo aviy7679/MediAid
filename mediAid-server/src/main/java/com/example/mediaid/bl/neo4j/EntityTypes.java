@@ -35,7 +35,19 @@ public class EntityTypes {
             "ATC",          // מערכת סיווג רפואית
             "CSP",          // פתולוגיה
             "MEDLINEPLUS",  // מידע על בריאות למטופלים
-            "MTH"           // מטא-תזאורוס
+            "MTH",           // מטא-תזאורוס
+            "SNOMEDCT_US",  // SNOMED CT US Edition
+            "RXNORM",       // RxNorm
+            "MTHSPL",       // Metathesaurus Structured Product Labels
+            "NCI",          // National Cancer Institute
+            "LNC",          // LOINC
+            "NCBI",         // National Center for Biotechnology Information
+            "OMIM",         // Online Mendelian Inheritance in Man
+            "HPO",          // Human Phenotype Ontology
+            "MEDCIN",       // MEDCIN
+            "ICD10PCS",     // ICD-10 Procedure Coding System
+            "UWDA",         // University of Washington Digital Anatomist
+            "SNOMEDCT_VET" // SNOMED CT Veterinary Extension
     ));
 
     // טבלת מיפוי בין מקורות UMLS לסוגי יישויות

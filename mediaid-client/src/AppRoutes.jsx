@@ -5,7 +5,7 @@ import SignUp from './components/SignUp'
 import UploadData from './components/UploadData'
 import MainMenu from './components/MainMenue'
 import FillUserData from './components/FillUserData'
-
+import ProtectedRoute from './ProtectedRoute'
 
 export default function AppRoutes() {
   return (
@@ -13,9 +13,25 @@ export default function AppRoutes() {
         <Route path='/' element={<LoginScreen />}></Route>
         <Route path='/login' element={<LoginScreen />}></Route>
         <Route path='/signUp' element={<SignUp />}></Route>
-        <Route path='/uploadUserData' element={<UploadData />}></Route>
-        <Route path='/homePage' element={<MainMenu />}></Route>
-        <Route path='/fillUserData' element={<FillUserData />}></Route>
+        
+        {/* Protected Routes - דורשים התחברות */}
+        <Route path='/uploadUserData' element={
+            <ProtectedRoute>
+                <UploadData />
+            </ProtectedRoute>
+        }></Route>
+        
+        <Route path='/homePage' element={
+            <ProtectedRoute>
+                <MainMenu />
+            </ProtectedRoute>
+        }></Route>
+        
+        <Route path='/fillUserData' element={
+            <ProtectedRoute>
+                <FillUserData />
+            </ProtectedRoute>
+        }></Route>
     </Routes>
   )
 }

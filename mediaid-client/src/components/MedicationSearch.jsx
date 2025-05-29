@@ -8,8 +8,9 @@ const MedicationSearch = () => {
   const [selectedMedication, setSelectedMedication] = useState(null);
   const debounceTimeout = useRef(null);
   
-  // מונע חיפושים מיותרים בכל הקלדה - מחכה 300ms לפני ביצוע החיפוש
+  //כל פעם שהquery משתנה
   useEffect(() => {
+    //אם המשתמש לא הקליד כלום או הקליד פחות מ-2 תווים, מבטל את החיפוש ומנקה את התוצאות
     if (!query || query.length < 2) {
       setFiltered([]);
       return;
@@ -37,9 +38,7 @@ const MedicationSearch = () => {
     
     setLoading(true);
     try {
-      // בדיקה האם השרת רץ על פורט אחר מהקליינט (כרגיל במקרה של Vite)
-      // לדוגמה: קליינט על פורט 5173 (Vite ברירת המחדל) ושרת על פורט 8080 (Spring Boot ברירת המחדל)
-      const BASE_URL = import.meta.env.DEV ? 'http://localhost:8080' : '';
+      const BASE_URL = 'http://localhost:8080';
       
       const response = await fetch(`${BASE_URL}/api/medications/search?query=${encodeURIComponent(query)}`);
       if (!response.ok) {

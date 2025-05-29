@@ -1,6 +1,6 @@
 import React from 'react'
-import DiseaseSearch from './DiseaseSearch'
-import MedicationSearch from './DiseaseSearch'
+import DiseaseSearch from './MedicationSearch'
+import MedicationSearch from './MedicationSearch'
 
 export default function FillUserData() {
   return (

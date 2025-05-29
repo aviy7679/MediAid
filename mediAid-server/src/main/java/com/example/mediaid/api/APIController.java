@@ -6,6 +6,7 @@ import com.example.mediaid.dal.User;
 import com.example.mediaid.dto.DiagnosisData;
 import com.example.mediaid.dto.LoginRequest;
 import com.example.mediaid.dto.SignupRequest;
+import com.example.mediaid.security.jwt.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,11 +14,16 @@ import com.example.mediaid.bl.UserService.Result;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Map;
 
 @CrossOrigin(origins = "*", allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST})
 @RestController
 public class APIController {
     private final UserService userService;
+
+    @Autowired
+    private JwtUtil jwtUtil;
 
     @Autowired
     private Text_from_image textFromImage;
@@ -32,25 +38,21 @@ public class APIController {
         try {
             System.out.println("SignUp request received for email: " + signupRequest.getEmail());
 
-            // Map the DTO to User entity
             User user = new User();
             user.setEmail(signupRequest.getEmail());
-            // Note: we're setting the plain text password which will be hashed in the service
             user.setPasswordHash(signupRequest.getPassword());
             user.setUsername(signupRequest.getUsername());
             user.setGender(signupRequest.getGender());
 
-            // Handle date of birth if it's missing or in incorrect format
             String dateOfBirth = signupRequest.getDateOfBirth();
             if (dateOfBirth != null && !dateOfBirth.isEmpty()) {
                 try {
                     user.setDateOfBirth(LocalDate.parse(dateOfBirth));
                 } catch (Exception e) {
-                    return ResponseEntity.status(400).body("Invalid date format for dateOfBirth");
+                    return ResponseEntity.status(400).body(createErrorResponse("Invalid date format for dateOfBirth"));
                 }
             }
 
-            // Handle optional fields
             if (signupRequest.getHeight() != null) {
                 user.setHeight(Float.valueOf(signupRequest.getHeight()));
             }
@@ -63,35 +65,90 @@ public class APIController {
 
             switch (result) {
                 case SUCCESS:
-                    return ResponseEntity.ok("User created successfully");
+                    // Get the saved user to generate JWT
+                    User savedUser = userService.findByEmail(signupRequest.getEmail());
+                    String token = jwtUtil.generateToken(savedUser.getUsername(), savedUser.getEmail(), savedUser.getUserId());
+
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("token", token);
+                    response.put("username", savedUser.getUsername());
+                    response.put("email", savedUser.getEmail());
+                    response.put("message", "User created successfully");
+
+                    return ResponseEntity.ok(response);
                 case EMAIL_ALREADY_EXISTS:
-                    return ResponseEntity.status(409).body("Email already exists");
+                    return ResponseEntity.status(409).body(createErrorResponse("Email already exists"));
                 case INVALID_PASSWORD:
-                    return ResponseEntity.status(400).body("Invalid password length");
+                    return ResponseEntity.status(400).body(createErrorResponse("Invalid password length"));
                 case ERROR:
                 default:
-                    return ResponseEntity.status(500).body("An unexpected error occurred");
+                    return ResponseEntity.status(500).body(createErrorResponse("An unexpected error occurred"));
             }
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.status(500).body("Server error: " + e.getMessage());
+            return ResponseEntity.status(500).body(createErrorResponse("Server error: " + e.getMessage()));
         }
     }
 
     @PostMapping("/logIn")
-    public ResponseEntity<?> logIn(@RequestBody LoginRequest user) {
+    public ResponseEntity<?> logIn(@RequestBody LoginRequest loginRequest) {
         try {
-            System.out.println("LogIn request received for email: " + user.getMail());
-            Result result = userService.checkEntry(user.getMail(), user.getPassword());
-            return switch (result) {
-                case SUCCESS -> ResponseEntity.ok("User logged in successfully");
-                case NOT_EXISTS -> ResponseEntity.status(404).body("User does not exist");
-                default -> ResponseEntity.status(401).body("Wrong password");
-            };
+            System.out.println("LogIn request received for email: " + loginRequest.getMail());
+            Result result = userService.checkEntry(loginRequest.getMail(), loginRequest.getPassword());
+
+            switch (result) {
+                case SUCCESS:
+                    User user = userService.findByEmail(loginRequest.getMail());
+                    String token = jwtUtil.generateToken(user.getUsername(), user.getEmail(), user.getUserId());
+
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("token", token);
+                    response.put("username", user.getUsername());
+                    response.put("email", user.getEmail());
+                    response.put("message", "User logged in successfully");
+
+                    return ResponseEntity.ok(response);
+                case NOT_EXISTS:
+                    return ResponseEntity.status(404).body(createErrorResponse("User does not exist"));
+                default:
+                    return ResponseEntity.status(401).body(createErrorResponse("Wrong password"));
+            }
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.status(500).body("Server error: " + e.getMessage());
+            return ResponseEntity.status(500).body(createErrorResponse("Server error: " + e.getMessage()));
         }
+    }
+
+    @PostMapping("/validateToken")
+    public ResponseEntity<?> validateToken(@RequestHeader("Authorization") String authHeader) {
+        try {
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+
+                if (jwtUtil.isValid(token)) {
+                    String username = jwtUtil.extractUsername(token);
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("valid", true);
+                    response.put("username", username);
+                    return ResponseEntity.ok(response);
+                }
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("valid", false);
+            return ResponseEntity.status(401).body(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("valid", false);
+            return ResponseEntity.status(401).body(response);
+        }
+    }
+
+    private Map<String, String> createErrorResponse(String message) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", "AUTHENTICATION_ERROR");
+        error.put("message", message);
+        return error;
     }
 
     @PostMapping("/uploadData")
@@ -105,7 +162,6 @@ public class APIController {
             if (diagnosisData.getImage() != null) {
                 responseMessage.append("Image received: ").append(diagnosisData.getImage().getOriginalFilename()).append("\n");
 
-                // Call OCR processing
                 String ocrResult = textFromImage.processOCR(diagnosisData.getImage());
                 System.out.println("OCR Result: " + ocrResult);
                 responseMessage.append("OCR Result: ").append(ocrResult).append("\n");

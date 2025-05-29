@@ -1,5 +1,7 @@
 package com.example.mediaid.utils;
 
+import com.example.mediaid.security.jwt.JwtFilter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -10,6 +12,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -21,6 +24,9 @@ import java.util.Arrays;
 @EnableMethodSecurity //אישור שימוש ברמת המתודה
 public class SecurityConfig {
 
+    @Autowired
+    private JwtFilter jwtFilter;
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         // BCrypt אלגוריתם לגיבוב סיסמאות עם salt
@@ -30,36 +36,30 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration(); //אובייקט הגדרות של CORS
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:5173")); // מאיפה מותר לגשת
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));  //מה מותר לעשות
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With")); //HTTP headers שמותר לקבל
-        configuration.setAllowCredentials(true);  //בקשות עם קוקיז וטוקנים
-        configuration.setMaxAge(3600L); // מטמון של בקשות preflight למשך שעה
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(Arrays.asList("http://localhost:5173"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
-
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource())) //הגדרות הCORS מהפונקציה למעלה
-                .csrf(AbstractHttpConfigurer::disable)  //לא רלוונטי בAPI מתקדמים
+        http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        //מגדיר נתיבים שלא דורשים התחברות
+                        .requestMatchers("/logIn", "/signUp", "/error").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
-                        .requestMatchers("/signUp").permitAll()  // הוספת הרשאה לנתיב ההרשמה
-                        .requestMatchers("/logIn").permitAll()   // הוספת הרשאה לנתיב ההתחברות
-                        .anyRequest().authenticated() //כל השאר - חייב החברות
+                        .anyRequest().authenticated()
                 )
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
-                .httpBasic(httpBasic -> {}); // או אל תשתמש בכלל אם זה לא נדרש
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
-    }
+}

@@ -74,7 +74,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
-
+import { auth } from '../authUtils'; 
 const API_URL = 'http://localhost:8080';
 
 function SignIn() {
@@ -130,12 +130,18 @@ function SignIn() {
       });
       
       console.log('Sign up successful:', response.data);
-      setSuccess('Account created successfully! Redirecting to login...');
-      
-      // Redirect to login after successful registration
+      // Save token and user data
+      auth.setToken(response.data.token);
+      auth.setUser({
+          username: response.data.username,
+          email: response.data.email
+      });
+
+      setSuccess('Account created successfully! Redirecting...');
+
       setTimeout(() => {
-        navigate('/login');
-      }, 2000);
+          navigate('/homePage');
+      }, 1500);
       
     } catch (error) {
       console.error('Error during sign in:', error);
