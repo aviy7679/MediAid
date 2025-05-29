@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class UserService {
@@ -86,7 +87,7 @@ public class UserService {
     }
 
     @Transactional
-    public Result changePassword(Long userId, String currentPassword, String newPassword) {
+    public Result changePassword(UUID userId, String currentPassword, String newPassword) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 

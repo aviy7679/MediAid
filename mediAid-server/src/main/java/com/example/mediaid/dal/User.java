@@ -1,4 +1,3 @@
-
 package com.example.mediaid.dal;
 
 import com.example.mediaid.dal.user_medical_history.RiskFactorEnums.*;
@@ -34,6 +33,13 @@ public class User {
 
     private String gender;
 
+    // שדות גובה ומשקל
+    @Column(name = "height")
+    private Float height; // גובה בסנטימטרים
+
+    @Column(name = "weight")
+    private Float weight; // משקל בקילוגרמים
+
     @Enumerated(EnumType.STRING)
     @Column(name = "smoking_status")
     private SmokingStatus smokingStatus;
@@ -66,13 +72,11 @@ public class User {
     @Column(name = "age_group")
     private AgeGroup ageGroup;
 
-
     @CreationTimestamp
     private LocalDateTime createdAt;
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
-
 
     public double calculateOverallRiskScore() {
         double totalRisk = 0.0;
@@ -98,7 +102,6 @@ public class User {
             totalRisk += familyCancer.getWeight();
             factorCount++;
         }
-
         if (bloodPressure != null) {
             totalRisk += bloodPressure.getWeight();
             factorCount++;
@@ -112,8 +115,17 @@ public class User {
             factorCount++;
         }
 
-
         return factorCount > 0 ? totalRisk / factorCount : 0.0;
     }
 
+    /**
+     * חישוב BMI
+     */
+    public Double calculateBMI() {
+        if (height != null && weight != null && height > 0 && weight > 0) {
+            double heightInMeters = height / 100.0;
+            return weight / (heightInMeters * heightInMeters);
+        }
+        return null;
+    }
 }

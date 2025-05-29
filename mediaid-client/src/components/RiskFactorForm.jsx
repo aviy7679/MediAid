@@ -1,6 +1,5 @@
-
-
 import React, { useState, useEffect } from 'react';
+import { auth } from '../authUtils'; 
 
 const RiskFactorForm = () => {
   // מצב הטופס - כל שדה נשמר כאן
@@ -137,6 +136,17 @@ const RiskFactorForm = () => {
     setSubmitStatus('');
 
     try {
+      // בדיקה שהמשתמש מחובר
+      if (!auth.isAuthenticated()) {
+        throw new Error('נדרשת התחברות למערכת');
+      }
+
+      // קבלת הטוקן
+      const token = auth.getToken();
+      if (!token) {
+        throw new Error('לא נמצא טוקן גישה');
+      }
+
       // ולידציה בסיסית
       if (!formData.weight || !formData.height) {
         throw new Error('אנא מלא שדות גובה ומשקל');
@@ -157,22 +167,35 @@ const RiskFactorForm = () => {
         bmi: formData.bmi
       };
 
+      console.log('שולח נתונים:', dataToSend);
+
       const response = await fetch('/api/user/risk-factors', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // הוסף כאן headers נוספים אם נדרש (כמו Authorization)
+          'Authorization': `Bearer ${token}` // הוספת טוקן ההרשאה
         },
         body: JSON.stringify(dataToSend)
       });
 
       if (!response.ok) {
-        throw new Error(`שגיאה בשרת: ${response.status}`);
+        if (response.status === 401) {
+          // טוקן לא תקין - הוצא את המשתמש
+          auth.logout();
+          throw new Error('הסשן פג תוקף, אנא התחבר מחדש');
+        }
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `שגיאה בשרת: ${response.status}`);
       }
 
       const result = await response.json();
       setSubmitStatus('הנתונים נשמרו בהצלחה!');
       console.log('תגובת השרת:', result);
+
+      // הצגת מידע נוסף מהתגובה
+      if (result.overallRiskScore !== undefined) {
+        setSubmitStatus(`הנתונים נשמרו בהצלחה! ציון סיכון כולל: ${result.overallRiskScore.toFixed(2)} (${result.riskLevel})`);
+      }
 
     } catch (error) {
       console.error('שגיאה בשליחת הנתונים:', error);
@@ -181,6 +204,13 @@ const RiskFactorForm = () => {
       setIsSubmitting(false);
     }
   };
+
+  // בדיקה אם המשתמש מחובר
+  useEffect(() => {
+    if (!auth.isAuthenticated()) {
+      setSubmitStatus('נדרשת התחברות למערכת');
+    }
+  }, []);
 
   // קומפוננטה לשדה בחירה (dropdown)
   const renderSelectField = (name, label, options) => (
@@ -272,7 +302,7 @@ const RiskFactorForm = () => {
 
         {/* כפתור שליחה ומסר סטטוס */}
         <div className="submit-section">
-          <button type="submit" className="submit-button" disabled={isSubmitting}>
+          <button type="submit" className="submit-button" disabled={isSubmitting || !auth.isAuthenticated()}>
             {isSubmitting ? 'שולח...' : 'שמור נתונים'}
           </button>
           {submitStatus && (
