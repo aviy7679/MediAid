@@ -19,6 +19,8 @@ import com.example.mediaid.dal.UMLS_terms.BiologicalFunction;
 import com.example.mediaid.dal.UMLS_terms.BiologicalFunctionRepository;
 
 
+import com.example.mediaid.dal.UMLS_terms.relationships.UmlsRelationship;
+import com.example.mediaid.dal.UMLS_terms.relationships.UmlsRelationshipRepository;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Session;
 import org.slf4j.Logger;
@@ -309,6 +311,137 @@ public class UmlsEntityImporter extends UmlsImporter{
             this.entityType = entityType;
             this.mapper = mapper;
         }
+    }
+    @Autowired
+    private UmlsRelationshipRepository relationshipRepository;
+
+    public void importRelationshipsFromDB() {
+        logger.info("Starting relationship import from PostgreSQL to Neo4j");
+
+        long totalRelationships = relationshipRepository.count();
+        logger.info("Total relationships to import: {}", totalRelationships);
+
+        if (totalRelationships == 0) {
+            logger.info("No relationships found in PostgreSQL");
+            return;
+        }
+
+        int pageNumber = 0;
+        int importedCount = 0;
+        List<Map<String, Object>> batch = new ArrayList<>();
+
+        Page<UmlsRelationship> page;
+        do {
+            Pageable pageable = PageRequest.of(pageNumber, PAGE_SIZE);
+            page = relationshipRepository.findAll(pageable);
+
+            for (UmlsRelationship rel : page.getContent()) {
+                Map<String, Object> relationshipData = new HashMap<>();
+                relationshipData.put("cui1", rel.getCui1());
+                relationshipData.put("cui2", rel.getCui2());
+                relationshipData.put("relType", rel.getRelationshipType());
+                relationshipData.put("weight", rel.getWeight());
+                relationshipData.put("source", rel.getSource());
+
+                batch.add(relationshipData);
+                importedCount++;
+
+                if (batch.size() >= BATCH_SIZE) {
+                    createRelationshipsBatch(batch);
+                    batch.clear();
+                    logger.info("Imported {} relationships from {}", importedCount, totalRelationships);
+                }
+            }
+            pageNumber++;
+        } while (page.hasNext());
+
+        if (!batch.isEmpty()) {
+            createRelationshipsBatch(batch);
+        }
+
+        logger.info("Completed importing {} relationships to Neo4j", importedCount);
+    }
+
+    private void createRelationshipsBatch(List<Map<String, Object>> relationships) {
+        try (Session session = neo4jDriver.session()) {
+            session.writeTransaction(tx -> {
+                int successCount = 0;
+                for (Map<String, Object> rel : relationships) {
+                    try {
+                        String query = "MATCH (n1), (n2) " +
+                                "WHERE n1.cui = $cui1 AND n2.cui = $cui2 " +
+                                "CREATE (n1)-[r:" + rel.get("relType") + " {" +
+                                "weight: $weight, source: $source}]->(n2) " +
+                                "RETURN 1 as created";
+
+                        var result = tx.run(query, rel);
+                        if (result.hasNext()) {
+                            successCount++;
+                        }
+                    } catch (Exception e) {
+                        logger.debug("Failed to create relationship '{}' -[{}]-> '{}': {}",
+                                rel.get("cui1"), rel.get("relType"), rel.get("cui2"), e.getMessage());
+                    }
+                }
+                logger.debug("Successfully created {} relationships in batch", successCount);
+                return null;
+            });
+        } catch (Exception e) {
+            logger.error("Error creating relationship batch: {}", e.getMessage());
+        }
+    }
+
+    public Map<String, Long> getRelationshipStatistics() {
+        Map<String, Long> stats = new HashMap<>();
+
+        try (Session session = neo4jDriver.session()) {
+            session.readTransaction(tx -> {
+                String[] relationshipTypes = {
+                        RelationshipTypes.TREATS,
+                        RelationshipTypes.INDICATES,
+                        RelationshipTypes.HAS_SYMPTOM,
+                        RelationshipTypes.CONTRAINDICATED_FOR,
+                        RelationshipTypes.INTERACTS_WITH,
+                        RelationshipTypes.SIDE_EFFECT_OF,
+                        RelationshipTypes.CAUSES_SIDE_EFFECT,
+                        RelationshipTypes.MAY_PREVENT,
+                        RelationshipTypes.COMPLICATION_OF,
+                        RelationshipTypes.AGGRAVATES,
+                        RelationshipTypes.RISK_FACTOR_FOR,
+                        RelationshipTypes.INCREASES_RISK_OF,
+                        RelationshipTypes.DIAGNOSED_BY,
+                        RelationshipTypes.DIAGNOSES,
+                        RelationshipTypes.PRECEDES,
+                        RelationshipTypes.LOCATED_IN,
+                        RelationshipTypes.INHIBITS,
+                        RelationshipTypes.STIMULATES
+                };
+
+                for (String relType : relationshipTypes) {
+                    try {
+                        var result = tx.run("MATCH ()-[r:" + relType + "]->() RETURN COUNT(r) as count");
+                        if (result.hasNext()) {
+                            long count = result.next().get("count").asLong();
+                            if (count > 0) {
+                                stats.put(relType, count);
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.warn("Error counting relationships of type {}: {}", relType, e.getMessage());
+                    }
+                }
+
+                var totalResult = tx.run("MATCH ()-[r]->() RETURN COUNT(r) as total");
+                if (totalResult.hasNext()) {
+                    long total = totalResult.next().get("total").asLong();
+                    stats.put("TOTAL_RELATIONSHIPS", total);
+                }
+
+                return null;
+            });
+        }
+
+        return stats;
     }
 }
 

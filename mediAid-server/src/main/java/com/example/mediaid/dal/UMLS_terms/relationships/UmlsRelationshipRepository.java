@@ -1,5 +1,7 @@
 package com.example.mediaid.dal.UMLS_terms.relationships;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -14,4 +16,12 @@ public interface UmlsRelationshipRepository extends JpaRepository<UmlsRelationsh
 
     @Query("SELECT COUNT(ur) FROM UmlsRelationship ur")
     long countAllRelationships();
+
+    Page<UmlsRelationship> findAll(Pageable pageable);
+
+    @Query("SELECT DISTINCT ur.relationshipType FROM UmlsRelationship ur")
+    List<String> findDistinctRelationshipTypes();
+
+    @Query("SELECT DISTINCT ur.source FROM UmlsRelationship ur")
+    List<String> findDistinctSources();
 }

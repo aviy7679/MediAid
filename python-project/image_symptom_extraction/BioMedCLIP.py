@@ -1,7 +1,7 @@
 import torch
 from PIL import Image
 from open_clip import create_model_from_pretrained, get_tokenizer
-from skin_umls_codes import verified_skin_conditions_umls
+from image_symptom_extraction.skin_umls_codes import verified_skin_conditions_umls
 
 
 # טען את המודל

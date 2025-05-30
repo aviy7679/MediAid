@@ -100,6 +100,60 @@ public class RelationshipTypes {
         // מנגנון פעולה ביולוגי
         UMLS_TO_NEO4J_RELATIONSHIPS.put("inhibits", INHIBITS);
         UMLS_TO_NEO4J_RELATIONSHIPS.put("stimulates", STIMULATES);
+        // 1. טיפולים (הכי חשוב!)
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("treats", TREATS);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("may_treat", TREATS);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("therapeutic_class_of", TREATS);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("has_therapeutic_class", TREATS);
+
+        // 2. סימפטומים ומחלות (חשוב!)
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("has_finding", HAS_SYMPTOM);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("finding_of", INDICATES);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("has_manifestation", HAS_SYMPTOM);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("manifestation_of", INDICATES);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("has_associated_finding", HAS_SYMPTOM);
+
+        // 3. התוויות נגד (בטיחות!)
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("contraindicated_with", CONTRAINDICATED_FOR);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("ci_with", CONTRAINDICATED_FOR);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("has_contraindication", CONTRAINDICATED_FOR);
+
+        // 4. אינטראקציות תרופות (בטיחות!)
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("interacts_with", INTERACTS_WITH);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("drug_interaction_of", INTERACTS_WITH);
+
+        // 5. תופעות לוואי (בטיחות!)
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("has_adverse_effect", CAUSES_SIDE_EFFECT);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("adverse_effect_of", SIDE_EFFECT_OF);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("side_effect_of", SIDE_EFFECT_OF);
+
+        // 6. גורמי סיכון (למניעה!)
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("risk_factor_for", RISK_FACTOR_FOR);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("predisposes", RISK_FACTOR_FOR);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("increases_risk_of", INCREASES_RISK_OF);
+
+        // 7. מניעה (למניעה!)
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("prevents", MAY_PREVENT);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("may_prevent", MAY_PREVENT);
+
+        // 8. מיקום אנטומי (לאיתור מחלות!)
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("has_finding_site", LOCATED_IN);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("finding_site_of", LOCATED_IN);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("has_location", LOCATED_IN);
+
+        // 9. אבחון (למומחים!)
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("diagnosed_by", DIAGNOSED_BY);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("diagnoses", DIAGNOSES);
+
+        // 10. סיבתיות רפואית (חשוב להבנה!)
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("has_causative_agent", "CAUSED_BY");
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("may_cause", "CAUSES");
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("complication_of", COMPLICATION_OF);
+
+        // 11. רק המרכיבים הפעילים של תרופות (לא הכל!)
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("has_active_ingredient", "HAS_ACTIVE_INGREDIENT");
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("active_ingredient_of", "ACTIVE_INGREDIENT_OF");
+    
     }
 
     /**

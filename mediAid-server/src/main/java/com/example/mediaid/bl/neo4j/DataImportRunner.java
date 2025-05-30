@@ -1,5 +1,6 @@
 package com.example.mediaid.bl.neo4j;
 
+import com.example.mediaid.bl.RelationshipProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +23,9 @@ public class DataImportRunner {
     private final UmlsRelationshipImporter relationshipImporter;
     private final RiskFactorSer riskFactorService;
     private final Environment environment;
+
+    @Autowired
+    private RelationshipProcessor relationshipProcessor;
 
     @Autowired
     public DataImportRunner(
@@ -106,7 +110,6 @@ public class DataImportRunner {
 //    }
 @EventListener(ApplicationReadyEvent.class)
 public void runDataImport() {
-    // בדיקה אם לבצע ייבוא נתונים (ניתן להגדיר בקובץ הקונפיגורציה)
     boolean importEnabled = Boolean.parseBoolean(
             environment.getProperty("mediaid.data.import.enabled", "false"));
 
@@ -122,20 +125,11 @@ public void runDataImport() {
     if (importEnabled) {
         try {
             logger.info("=== Starting MedicalAid System Data Import ===");
-            logger.info("🔧 USING BALANCED RELATIONSHIP FILTERING:");
-            logger.info("   ✅ Accepts all medically relevant relationships");
-            logger.info("   ✅ No source filtering (as requested)");
-            logger.info("   ✅ Expanded relationship mappings");
-            logger.info("   ✅ Null safety protection");
-            logger.info("   🚫 Excludes only translation/mapping relationships");
 
             if (importEntities) {
                 logger.info("Starting entity import from PostgreSQL to Neo4j...");
-
-                // ייבוא ישויות מ-PostgreSQL
                 entityImporter.importAllEntitiesFromDB();
 
-                // הדפסת סטטיסטיקות
                 Map<String, Long> stats = entityImporter.getImportStatistics();
                 logger.info("Entity import statistics:");
                 stats.forEach((type, count) ->
@@ -147,28 +141,16 @@ public void runDataImport() {
             if (importRelationships) {
                 String mrrelPath = environment.getProperty("mediaid.umls.mrrel.path");
                 if (mrrelPath != null && !mrrelPath.isEmpty()) {
-                    logger.info("Starting BALANCED relationship import from UMLS...");
-                    logger.info("Expected outcome: Much higher acceptance rate (~5-15% instead of 0.4%)");
+                    logger.info("Processing relationships from MRREL to PostgreSQL...");
+                    relationshipProcessor.processAndSaveRelationships(mrrelPath);
 
-                    // ייבוא קשרים מאוזן - לא נוקשן מדי!
-                    relationshipImporter.importRelationships(mrrelPath);
+                    logger.info("Starting relationship import from PostgreSQL to Neo4j...");
+                    entityImporter.importRelationshipsFromDB();
 
-                    // בדיקת תוצאות ייבוא קשרים
-                    Map<String, Object> relStats = relationshipImporter.validateImportedRelationships();
+                    Map<String, Long> relStats = entityImporter.getRelationshipStatistics();
                     logger.info("Relationship import statistics:");
                     relStats.forEach((type, count) ->
                             logger.info("  {}: {} relationships", type, count));
-
-                    // הערכה אם התוצאות טובות
-                    Long totalRels = (Long) relStats.get("total_relationships");
-                    if (totalRels != null && totalRels > 10000) {
-                        logger.info("🎉 SUCCESS! Imported {} relationships (much better!)", totalRels);
-                    } else if (totalRels != null && totalRels > 1000) {
-                        logger.info("✅ Good progress: {} relationships imported", totalRels);
-                    } else {
-                        logger.warn("⚠️ Low relationship count: {} - may need further tuning", totalRels);
-                    }
-
                 } else {
                     logger.info("MRREL file path not configured - skipping relationship import");
                 }
@@ -186,18 +168,46 @@ public void runDataImport() {
 
         } catch (Exception e) {
             logger.error("Error in data import: {}", e.getMessage(), e);
-            logger.info("💡 TROUBLESHOOTING TIPS:");
-            logger.info("   - Check if MRREL file path is correct");
-            logger.info("   - Verify Neo4j connection");
-            logger.info("   - Check if entities were imported first");
-            logger.info("   - Review logs for null pointer exceptions");
         }
     } else {
         logger.info("Data import disabled. To enable, set mediaid.data.import.enabled=true");
-        logger.info("For relationship import, also set mediaid.data.import.relationships=true");
     }
 }
 
+    private void printFinalSummary() {
+        try {
+            logger.info("\n=== System Status Summary ===");
+
+            Map<String, Long> entityStats = entityImporter.getImportStatistics();
+            long totalEntities = entityStats.values().stream().mapToLong(Long::longValue).sum();
+            logger.info("Total entities in graph: {}", totalEntities);
+
+            Map<String, Long> relationshipStats = entityImporter.getRelationshipStatistics();
+            long totalRelationships = relationshipStats.getOrDefault("TOTAL_RELATIONSHIPS", 0L);
+            logger.info("Total relationships in graph: {}", totalRelationships);
+
+            logger.info("\nEntity breakdown:");
+            entityStats.forEach((type, count) ->
+                    logger.info("  {}: {}", String.format("%-15s", type), String.format("%,d", count)));
+
+            if (totalRelationships > 0) {
+                logger.info("\nRelationship breakdown:");
+                relationshipStats.entrySet().stream()
+                        .filter(entry -> !entry.getKey().equals("TOTAL_RELATIONSHIPS"))
+                        .forEach(entry -> logger.info("  {}: {}",
+                                String.format("%-25s", entry.getKey()),
+                                String.format("%,d", entry.getValue())));
+            }
+
+            logger.info("\n{}", "=".repeat(40));
+            logger.info("System is ready for use!");
+            logger.info("API can be accessed at: http://localhost:8080/");
+            logger.info("{}", "=".repeat(40));
+
+        } catch (Exception e) {
+            logger.error("Error printing summary: {}", e.getMessage(), e);
+        }
+    }
     /**
      * אתחול גורמי סיכון בסיסיים
      */
@@ -236,46 +246,46 @@ public void runDataImport() {
     /**
      * הדפסת סיכום סופי של המערכת
      */
-    private void printFinalSummary() {
-        try {
-            logger.info("\n=== System Status Summary ===");
-
-            // סטטיסטיקות ישויות
-            Map<String, Long> entityStats = entityImporter.getImportStatistics();
-            long totalEntities = entityStats.values().stream().mapToLong(Long::longValue).sum();
-            logger.info("Total entities in graph: {}", totalEntities);
-
-            // סטטיסטיקות קשרים
-            Map<String, Object> relationshipStats = relationshipImporter.validateImportedRelationships();
-            long totalRelationships = relationshipStats.values().stream()
-                    .filter(v -> v instanceof Number)
-                    .mapToLong(v -> ((Number) v).longValue())
-                    .sum();
-            logger.info("Total relationships in graph: {}", totalRelationships);
-
-            // הצגת פירוט
-            logger.info("\nEntity breakdown:");
-            entityStats.forEach((type, count) ->
-                    logger.info("  {}: {}", String.format("%-15s", type), String.format("%,d", count)));
-
-            if (totalRelationships > 0) {
-                logger.info("\nRelationship breakdown:");
-                relationshipStats.forEach((type, count) -> {
-                    if (count instanceof Number) {
-                        logger.info("  {}: {}", String.format("%-25s", type), String.format("%,d", ((Number) count).longValue()));
-                    }
-                });
-            }
-
-            logger.info("\n{}", "=".repeat(40));
-            logger.info("System is ready for use!");
-            logger.info("API can be accessed at: http://localhost:8080/mediaid/api/medical/");
-            logger.info("{}", "=".repeat(40));
-
-        } catch (Exception e) {
-            logger.error("Error printing summary: {}", e.getMessage(), e);
-        }
-    }
+//    private void printFinalSummary() {
+//        try {
+//            logger.info("\n=== System Status Summary ===");
+//
+//            // סטטיסטיקות ישויות
+//            Map<String, Long> entityStats = entityImporter.getImportStatistics();
+//            long totalEntities = entityStats.values().stream().mapToLong(Long::longValue).sum();
+//            logger.info("Total entities in graph: {}", totalEntities);
+//
+//            // סטטיסטיקות קשרים
+//            Map<String, Object> relationshipStats = relationshipImporter.validateImportedRelationships();
+//            long totalRelationships = relationshipStats.values().stream()
+//                    .filter(v -> v instanceof Number)
+//                    .mapToLong(v -> ((Number) v).longValue())
+//                    .sum();
+//            logger.info("Total relationships in graph: {}", totalRelationships);
+//
+//            // הצגת פירוט
+//            logger.info("\nEntity breakdown:");
+//            entityStats.forEach((type, count) ->
+//                    logger.info("  {}: {}", String.format("%-15s", type), String.format("%,d", count)));
+//
+//            if (totalRelationships > 0) {
+//                logger.info("\nRelationship breakdown:");
+//                relationshipStats.forEach((type, count) -> {
+//                    if (count instanceof Number) {
+//                        logger.info("  {}: {}", String.format("%-25s", type), String.format("%,d", ((Number) count).longValue()));
+//                    }
+//                });
+//            }
+//
+//            logger.info("\n{}", "=".repeat(40));
+//            logger.info("System is ready for use!");
+//            logger.info("API can be accessed at: http://localhost:8080/mediaid/api/medical/");
+//            logger.info("{}", "=".repeat(40));
+//
+//        } catch (Exception e) {
+//            logger.error("Error printing summary: {}", e.getMessage(), e);
+//        }
+//    }
 
     /**
      * הפעלה ידנית של ייבוא נתונים - לשימוש מControllers או מקומות אחרים
