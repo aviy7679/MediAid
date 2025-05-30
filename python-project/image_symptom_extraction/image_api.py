@@ -2,11 +2,8 @@
 API שרת לניתוח סימפטומים מתמונות
 """
 from flask import Flask, request, jsonify
-from image_symptom_analyzer import ImageSymptomAnalyzer
+from image_analyzer import ImageSymptomAnalyzer
 import logging
-import base64
-import tempfile
-import os
 
 # הגדרת logging
 logging.basicConfig(level=logging.INFO)

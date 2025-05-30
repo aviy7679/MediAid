@@ -1,5 +1,5 @@
 from .medclip_utils import *
-from image_symptom_extraction.skin_umls_codes import verified_skin_conditions_umls
+from skin_umls_codes import verified_skin_conditions_umls
 import torch
 
 def predict(image_path, top_k=3):

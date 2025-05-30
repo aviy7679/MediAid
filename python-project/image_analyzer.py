@@ -1,5 +1,5 @@
 """
-מחלקה לניתוח סימפטומים מתמונות באמצעות מודל BiomedCLIP
+מחלקה ייעודית לניתוח סימפטומים מתמונות באמצעות מודל BiomedCLIP
 """
 import torch
 from PIL import Image
@@ -9,8 +9,9 @@ import logging
 import os
 import io
 import base64
+import time
 
-# יבוא רשימת הסימפטומים (צריך להיות בקובץ נפרד)
+# יבוא רשימת הסימפטומים
 try:
     from skin_umls_codes import verified_skin_conditions_umls
 except ImportError:
@@ -20,14 +21,16 @@ except ImportError:
         "C0015230": "Rash",
         "C0333355": "Skin discoloration",
         "C0018681": "Headache",
-        "C0015967": "Fever"
+        "C0015967": "Fever",
+        "C0030193": "Pain",
+        "C0037090": "Signs and symptoms",
+        "C0038990": "Swelling"
     }
 
-
-class ImageSymptomAnalyzer:
+class ImageAnalyzer:
     def __init__(self, min_confidence=0.1):
         """
-        אתחול המחלקה עם טעינת מודל BiomedCLIP
+        אתחול המחלקה עם הגדרות ברירת מחדל
 
         Args:
             min_confidence (float): סף מינימום לביטחון בתוצאה
@@ -37,14 +40,19 @@ class ImageSymptomAnalyzer:
         self.preprocess = None
         self.tokenizer = None
         self.device = None
+        self.is_loaded = False
+
+        # נתונים לתמונות
         self.labels = list(verified_skin_conditions_umls.values())
         self.cui_to_label = verified_skin_conditions_umls
-        self._load_model()
 
-    def _load_model(self):
+        self.logger = logging.getLogger(__name__)
+
+    def load_model(self):
         """טעינת מודל BiomedCLIP"""
         try:
-            print("מתחיל לטעון את מודל BiomedCLIP...")
+            start_time = time.time()
+            self.logger.info("מתחיל לטעון את מודל BiomedCLIP לתמונות...")
 
             # טעינת המודל
             self.model, self.preprocess = create_model_from_pretrained(
@@ -57,11 +65,13 @@ class ImageSymptomAnalyzer:
             # הגדרת device
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             self.model.to(self.device).eval()
+            self.is_loaded = True
 
-            print(f"המודל נטען בהצלחה על {self.device}!")
+            end_time = time.time()
+            self.logger.info(f"מודל התמונות נטען בהצלחה על {self.device} בזמן: {end_time - start_time:.2f} שניות")
 
         except Exception as e:
-            logging.error(f"שגיאה בטעינת המודל: {e}")
+            self.logger.error(f"שגיאה בטעינת מודל התמונות: {e}")
             raise Exception(f"Failed to load BiomedCLIP model: {e}")
 
     def _preprocess_image(self, image_input):
@@ -101,21 +111,25 @@ class ImageSymptomAnalyzer:
             return processed_image
 
         except Exception as e:
-            logging.error(f"שגיאה בעיבוד התמונה: {e}")
+            self.logger.error(f"שגיאה בעיבוד התמונה: {e}")
             raise Exception(f"Failed to preprocess image: {e}")
 
-    def analyze_image(self, image_input):
+    def extract_symptoms(self, image_input, min_confidence=None):
         """
-        ניתוח תמונה לזיהוי סימפטומים
+        חילוץ סימפטומים מתמונה
 
         Args:
             image_input: התמונה לניתוח (נתיב, bytes, או base64)
+            min_confidence: סף ביטחון (אופציונלי)
 
         Returns:
             list: רשימת סימפטומים שזוהו
         """
-        if not self.model:
-            raise Exception("Model not loaded")
+        if not self.is_loaded:
+            raise Exception("Image model not loaded. Call load_model() first.")
+
+        # שימוש בסף מותאם או ברירת מחדל
+        confidence_threshold = min_confidence if min_confidence is not None else self.min_confidence
 
         try:
             # עיבוד התמונה
@@ -138,7 +152,7 @@ class ImageSymptomAnalyzer:
             # עיבוד התוצאות
             symptoms = []
             for i, prob in enumerate(probs):
-                if prob >= self.min_confidence:
+                if prob >= confidence_threshold:
                     # חיפוש ה-CUI המתאים
                     label = self.labels[i]
                     cui = None
@@ -161,32 +175,53 @@ class ImageSymptomAnalyzer:
             return symptoms
 
         except Exception as e:
-            logging.error(f"שגיאה בניתוח התמונה: {e}")
-            raise Exception(f"Failed to analyze image: {e}")
+            self.logger.error(f"שגיאה בחילוץ סימפטומים מתמונה: {e}")
+            raise Exception(f"Failed to extract symptoms from image: {e}")
 
-    def get_full_analysis(self, image_input):
+    def analyze_image(self, image_input, min_confidence=None):
         """
-        ניתוח מלא עם מידע נוסף
+        ניתוח מלא של תמונה עם מידע נוסף
 
         Args:
             image_input: התמונה לניתוח
+            min_confidence: סף ביטחון (אופציונלי)
 
         Returns:
             dict: תוצאות הניתוח המלאות
         """
-        symptoms = self.analyze_image(image_input)
+        # שימוש בסף מותאם או ברירת מחדל
+        confidence_threshold = min_confidence if min_confidence is not None else self.min_confidence
+
+        symptoms = self.extract_symptoms(image_input, confidence_threshold)
 
         return {
             "symptoms_found": len(symptoms),
             "symptoms": symptoms,
-            "min_confidence_threshold": self.min_confidence,
+            "min_confidence_threshold": confidence_threshold,
             "total_labels_checked": len(self.labels),
-            "analysis_status": "success"
+            "analysis_status": "success",
+            "analyzer_type": "BiomedCLIP",
+            "device": str(self.device)
         }
 
     def set_confidence_threshold(self, threshold):
         """עדכון סף הביטחון המינימום"""
         if 0 <= threshold <= 1:
             self.min_confidence = threshold
+            self.logger.info(f"Image confidence threshold updated to {threshold}")
         else:
             raise ValueError("Confidence threshold must be between 0 and 1")
+
+    def get_status(self):
+        """קבלת סטטוס המודל"""
+        return {
+            "model_loaded": self.is_loaded,
+            "device": str(self.device) if self.device else None,
+            "confidence_threshold": self.min_confidence,
+            "total_labels": len(self.labels),
+            "analyzer_type": "BiomedCLIP Image Analyzer"
+        }
+
+    def is_ready(self):
+        """בדיקה האם המודל מוכן לשימוש"""
+        return self.is_loaded and self.model is not None

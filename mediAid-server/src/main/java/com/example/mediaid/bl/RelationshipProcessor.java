@@ -47,6 +47,7 @@ public class RelationshipProcessor {
     private Set<String> labTestCuis;
     private Set<String> biologicalFunctionCuis;
 
+
     @Autowired
     public RelationshipProcessor(
             UmlsRelationshipRepository relationshipRepository,
@@ -163,216 +164,151 @@ public class RelationshipProcessor {
         }
     }
 
-//    private ProcessResult processLine(String line) {
-//        String[] fields = line.split("\\|");
-//        if (fields.length < 15) {
-//            return new ProcessResult(null, SkipReason.INVALID_FORMAT);
-//        }
-//
-//        String cui1 = fields[0];
-//        String cui2 = fields[4];
-//        String rel = fields[3];
-//        String rela = fields[7];
-//        String sab = fields[10];
-//
-//        // סינון 1: מניעת לולאות עצמיות
-//        if (cui1.equals(cui2)) {
-//            return new ProcessResult(null, SkipReason.SELF_LOOP);
-//        }
-//
-//        // סינון 2: מקורות מועדפים
-//        if (!EntityTypes.PREFERRED_SOURCES.contains(sab)) {
-//            return new ProcessResult(null, SkipReason.NON_PREFERRED_SOURCE);
-//        }
-//
-//        // סינון 3: קיום צמתים
-//        if (!existingCuis.contains(cui1) || !existingCuis.contains(cui2)) {
-//            return new ProcessResult(null, SkipReason.MISSING_NODES);
-//        }
-//
-//        // סינון 4: סוג קשר תקין
-//        String relationshipType = determineRelationshipType(rel, rela);
-//        if (relationshipType == null) {
-//            return new ProcessResult(null, SkipReason.INVALID_RELATION_TYPE);
-//        }
-//
-//        String neoRelType = RelationshipTypes.UMLS_TO_NEO4J_RELATIONSHIPS.get(relationshipType.toLowerCase());
-//        if (neoRelType == null) {
-//            return new ProcessResult(null, SkipReason.INVALID_RELATION_TYPE);
-//        }
-//
-//        // סינון 5: תאימות סוגי צמתים
-//        if (!isValidNodeTypeCombo(cui1, cui2, neoRelType)) {
-//            return new ProcessResult(null, SkipReason.INVALID_NODE_TYPES);
-//        }
-//
-//        // יצירת הקשר
-//        UmlsRelationship relationship = new UmlsRelationship();
-//        relationship.setCui1(cui1);
-//        relationship.setCui2(cui2);
-//        relationship.setRelationshipType(neoRelType);
-//        relationship.setWeight(RelationshipTypes.calculateRelationshipWeight(relationshipType, sab));
-//        relationship.setSource(sab);
-//        relationship.setOriginalRel(rel);
-//        relationship.setOriginalRela(rela);
-//
-//        return new ProcessResult(relationship, null);
-//    }
-private ProcessResult processLine(String line) {
-    String[] fields = line.split("\\|");
-    if (fields.length < 15) {
-        return new ProcessResult(null, SkipReason.INVALID_FORMAT);
-    }
 
-    String cui1 = fields[0];
-    String cui2 = fields[4];
-    String rel = fields[3];
-    String rela = fields[7];
-    String sab = fields[10];
-
-    // ===== DEBUGGING - מה מגיע בפועל =====
-    debugSourceCounts.put(sab, debugSourceCounts.getOrDefault(sab, 0) + 1);
-
-    if (rela != null && !rela.trim().isEmpty()) {
-        debugRelationCounts.put("RELA:" + rela, debugRelationCounts.getOrDefault("RELA:" + rela, 0) + 1);
-    }
-    if (rel != null && !rel.trim().isEmpty()) {
-        debugRelationCounts.put("REL:" + rel, debugRelationCounts.getOrDefault("REL:" + rel, 0) + 1);
-    }
-
-    // סינון 1: מניעת לולאות עצמיות
-    if (cui1.equals(cui2)) {
-        return new ProcessResult(null, SkipReason.SELF_LOOP);
-    }
-
-    // סינון 2: מקורות מועדפים
-    if (!EntityTypes.PREFERRED_SOURCES.contains(sab)) {
-        return new ProcessResult(null, SkipReason.NON_PREFERRED_SOURCE);
-    }
-
-    // סינון 3: קיום צמתים
-    if (!existingCuis.contains(cui1) || !existingCuis.contains(cui2)) {
-        return new ProcessResult(null, SkipReason.MISSING_NODES);
-    }
-
-    // סינון 4: סוג קשר תקין - עם דיבוג
-    String relationshipType = determineRelationshipType(rel, rela);
-    if (relationshipType == null) {
-        // DEBUGGING - שמור דוגמאות לקשרים שנדחו
-        if (sampleRejectedRels.size() < 50) {
-            sampleRejectedRels.add("REL:'" + rel + "' RELA:'" + rela + "'");
+    private ProcessResult processLine(String line) {
+        logger.info("💯💯💯💯💯Processing line: {} in demo mode", line);
+        String[] fields = line.split("\\|");
+        if (fields.length < 15) {
+            return new ProcessResult(null, SkipReason.INVALID_FORMAT);
         }
-        return new ProcessResult(null, SkipReason.INVALID_RELATION_TYPE);
-    }
 
-    String neoRelType = RelationshipTypes.UMLS_TO_NEO4J_RELATIONSHIPS.get(relationshipType.toLowerCase());
-    if (neoRelType == null) {
-        // DEBUGGING - שמור דוגמאות לקשרים שהמיפוי לא מכיר
-        if (sampleRejectedRels.size() < 50) {
-            sampleRejectedRels.add("MAPPED:'" + relationshipType + "' (from REL:'" + rel + "' RELA:'" + rela + "')");
+        String cui1 = fields[0];
+        String cui2 = fields[4];
+        String rel = fields[3];
+        String rela = fields[7];
+        String sab = fields[10];
+
+        if(DemoMode.MODE){
+            if(!DemoMode.DEMO_MODES.contains(cui1) || !DemoMode.DEMO_MODES.contains(cui2)){
+                return new ProcessResult(null, SkipReason.NON_DEMO_RELEVANT);
+            }
         }
-        return new ProcessResult(null, SkipReason.INVALID_RELATION_TYPE);
+
+        // סינון 1: מניעת לולאות עצמיות
+        if (cui1.equals(cui2)) {
+            return new ProcessResult(null, SkipReason.SELF_LOOP);
+        }
+
+        // סינון 2: מקורות מועדפים
+        if (!DemoMode.MODE && (!EntityTypes.PREFERRED_SOURCES.contains(sab))) {
+            return new ProcessResult(null, SkipReason.NON_PREFERRED_SOURCE);
+        }
+
+        // סינון 3: קיום צמתים
+        if (!DemoMode.MODE && (!existingCuis.contains(cui1) || !existingCuis.contains(cui2))) {
+            return new ProcessResult(null, SkipReason.MISSING_NODES);
+        }
+
+        // סינון 4: סוג קשר תקין
+        String relationshipType = determineRelationshipType(rel, rela);
+        if (relationshipType == null) {
+            return new ProcessResult(null, SkipReason.INVALID_RELATION_TYPE);
+        }
+
+        String neoRelType = RelationshipTypes.UMLS_TO_NEO4J_RELATIONSHIPS.get(relationshipType.toLowerCase());
+        if (neoRelType == null) {
+            if(DemoMode.MODE){
+                neoRelType = normalizeRelationshipType(relationshipType);
+            }else{
+                return new ProcessResult(null, SkipReason.INVALID_RELATION_TYPE);
+            }
+        }
+
+        // יצירת הקשר
+        UmlsRelationship relationship = new UmlsRelationship();
+        relationship.setCui1(cui1);
+        relationship.setCui2(cui2);
+        relationship.setRelationshipType(neoRelType);
+        relationship.setWeight(RelationshipTypes.calculateRelationshipWeight(relationshipType, sab));
+        relationship.setSource(sab);
+        relationship.setOriginalRel(rel);
+        relationship.setOriginalRela(rela);
+
+        return new ProcessResult(relationship, null);
     }
-
-    // סינון 5: תאימות סוגי צמתים
-    if (!isValidNodeTypeCombo(cui1, cui2, neoRelType)) {
-        return new ProcessResult(null, SkipReason.INVALID_NODE_TYPES);
-    }
-
-    // יצירת הקשר
-    UmlsRelationship relationship = new UmlsRelationship();
-    relationship.setCui1(cui1);
-    relationship.setCui2(cui2);
-    relationship.setRelationshipType(neoRelType);
-    relationship.setWeight(RelationshipTypes.calculateRelationshipWeight(relationshipType, sab));
-    relationship.setSource(sab);
-    relationship.setOriginalRel(rel);
-    relationship.setOriginalRela(rela);
-
-    return new ProcessResult(relationship, null);
-}
     private void loadExistingCuis() {
-        existingCuis = new HashSet<>();
-        diseaseCuis = new HashSet<>();
-        medicationCuis = new HashSet<>();
-        symptomCuis = new HashSet<>();
-        riskFactorCuis = new HashSet<>();
-        procedureCuis = new HashSet<>();
-        anatomicalCuis = new HashSet<>();
-        labTestCuis = new HashSet<>();
-        biologicalFunctionCuis = new HashSet<>();
+            existingCuis = new HashSet<>();
+            diseaseCuis = new HashSet<>();
+            medicationCuis = new HashSet<>();
+            symptomCuis = new HashSet<>();
+            riskFactorCuis = new HashSet<>();
+            procedureCuis = new HashSet<>();
+            anatomicalCuis = new HashSet<>();
+            labTestCuis = new HashSet<>();
+            biologicalFunctionCuis = new HashSet<>();
 
-        diseaseRepository.findAll().forEach(d -> {
-            existingCuis.add(d.getCui());
-            diseaseCuis.add(d.getCui());
-        });
+            diseaseRepository.findAll().forEach(d -> {
+                existingCuis.add(d.getCui());
+                diseaseCuis.add(d.getCui());
+            });
 
-        medicationRepository.findAll().forEach(m -> {
-            existingCuis.add(m.getCui());
-            medicationCuis.add(m.getCui());
-        });
+            medicationRepository.findAll().forEach(m -> {
+                existingCuis.add(m.getCui());
+                medicationCuis.add(m.getCui());
+            });
 
-        symptomRepository.findAll().forEach(s -> {
-            existingCuis.add(s.getCui());
-            symptomCuis.add(s.getCui());
-        });
+            symptomRepository.findAll().forEach(s -> {
+                existingCuis.add(s.getCui());
+                symptomCuis.add(s.getCui());
+            });
 
-        riskFactorRepository.findAll().forEach(rf -> {
-            existingCuis.add(rf.getCui());
-            riskFactorCuis.add(rf.getCui());
-        });
+            riskFactorRepository.findAll().forEach(rf -> {
+                existingCuis.add(rf.getCui());
+                riskFactorCuis.add(rf.getCui());
+            });
 
-        procedureRepository.findAll().forEach(p -> {
-            existingCuis.add(p.getCui());
-            procedureCuis.add(p.getCui());
-        });
+            procedureRepository.findAll().forEach(p -> {
+                existingCuis.add(p.getCui());
+                procedureCuis.add(p.getCui());
+            });
 
-        anatomicalStructureRepository.findAll().forEach(as -> {
-            existingCuis.add(as.getCui());
-            anatomicalCuis.add(as.getCui());
-        });
+            anatomicalStructureRepository.findAll().forEach(as -> {
+                existingCuis.add(as.getCui());
+                anatomicalCuis.add(as.getCui());
+            });
 
-        labTestRepository.findAll().forEach(lt -> {
-            existingCuis.add(lt.getCui());
-            labTestCuis.add(lt.getCui());
-        });
+            labTestRepository.findAll().forEach(lt -> {
+                existingCuis.add(lt.getCui());
+                labTestCuis.add(lt.getCui());
+            });
 
-        biologicalFunctionRepository.findAll().forEach(bf -> {
-            existingCuis.add(bf.getCui());
-            biologicalFunctionCuis.add(bf.getCui());
-        });
+            biologicalFunctionRepository.findAll().forEach(bf -> {
+                existingCuis.add(bf.getCui());
+                biologicalFunctionCuis.add(bf.getCui());
+            });
 
-        logger.info("Loaded {} existing CUIs", existingCuis.size());
-        logger.info("  Diseases: {}", diseaseCuis.size());
-        logger.info("  Medications: {}", medicationCuis.size());
-        logger.info("  Symptoms: {}", symptomCuis.size());
-        logger.info("  Risk Factors: {}", riskFactorCuis.size());
-        logger.info("  Procedures: {}", procedureCuis.size());
-        logger.info("  Anatomical Structures: {}", anatomicalCuis.size());
-        logger.info("  Lab Tests: {}", labTestCuis.size());
-        logger.info("  Biological Functions: {}", biologicalFunctionCuis.size());
-    }
+            logger.info("Loaded {} existing CUIs", existingCuis.size());
+            logger.info("  Diseases: {}", diseaseCuis.size());
+            logger.info("  Medications: {}", medicationCuis.size());
+            logger.info("  Symptoms: {}", symptomCuis.size());
+            logger.info("  Risk Factors: {}", riskFactorCuis.size());
+            logger.info("  Procedures: {}", procedureCuis.size());
+            logger.info("  Anatomical Structures: {}", anatomicalCuis.size());
+            logger.info("  Lab Tests: {}", labTestCuis.size());
+            logger.info("  Biological Functions: {}", biologicalFunctionCuis.size());
+        }
 
     private String determineRelationshipType(String rel, String rela) {
+        // בדוק תחילה RELA (ספציפי יותר)
         if (rela != null && !rela.trim().isEmpty()) {
             String normalized = rela.trim().toLowerCase();
             if (RelationshipTypes.UMLS_TO_NEO4J_RELATIONSHIPS.containsKey(normalized)) {
                 return normalized;
             }
-            return normalized;
+            return normalized; // גם אם לא במיפוי, תחזיר כמו שהוא
         }
 
+        // אם אין RELA, השתמש ב-REL
         if (rel != null && !rel.trim().isEmpty()) {
             String normalized = rel.trim().toLowerCase();
             if (RelationshipTypes.UMLS_TO_NEO4J_RELATIONSHIPS.containsKey(normalized)) {
                 return normalized;
             }
-            return normalized;
+            return normalized; // גם אם לא במיפוי, תחזיר כמו שהוא
         }
 
-        return null;
+        return null; // רק אם באמת אין כלום
     }
-
     private boolean isValidNodeTypeCombo(String cui1, String cui2, String relationshipType) {
         return RelationshipTypes.isValidRelationshipForNodeTypes(
                 diseaseCuis, medicationCuis, symptomCuis,
@@ -397,6 +333,14 @@ private ProcessResult processLine(String line) {
         MISSING_NODES,
         INVALID_RELATION_TYPE,
         INVALID_NODE_TYPES,
-        INVALID_FORMAT
+        INVALID_FORMAT,
+        NON_DEMO_RELEVANT
+    }
+
+    private String normalizeRelationshipType(String type) {
+        return type.toUpperCase()
+                .replace(" ", "_")
+                .replace("-", "_")
+                .replaceAll("[^A-Z0-9_]", "");
     }
 }

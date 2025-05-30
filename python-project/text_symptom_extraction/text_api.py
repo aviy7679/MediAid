@@ -2,7 +2,7 @@
 API שרת לניתוח סימפטומים מטקסט
 """
 from flask import Flask, request, jsonify
-from text_symptom_analyzer import TextSymptomAnalyzer
+from text_analyzer import TextSymptomAnalyzer
 import logging
 import os
 

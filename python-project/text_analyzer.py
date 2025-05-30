@@ -1,12 +1,11 @@
 """
-מחלקה לניתוח סימפטומים מטקסט באמצעות מודל MedCAT
+מחלקה ייעודית לניתוח סימפטומים מטקסט באמצעות מודל MedCAT
 """
 from medcat.cat import CAT
-import json
 import logging
+import time
 
-
-class TextSymptomAnalyzer:
+class TextAnalyzer:
     def __init__(self, model_path):
         """
         אתחול המחלקה עם טעינת מודל MedCAT
@@ -16,16 +15,23 @@ class TextSymptomAnalyzer:
         """
         self.model_path = model_path
         self.cat = None
-        self._load_model()
+        self.is_loaded = False
+        self.logger = logging.getLogger(__name__)
 
-    def _load_model(self):
+    def load_model(self):
         """טעינת מודל MedCAT"""
         try:
-            print("מתחיל לטעון את מודל UMLS...")
+            start_time = time.time()
+            self.logger.info("מתחיל לטעון את מודל MedCAT לטקסט...")
+
             self.cat = CAT.load_model_pack(self.model_path)
-            print("המודל נטען בהצלחה!")
+            self.is_loaded = True
+
+            end_time = time.time()
+            self.logger.info(f"מודל הטקסט נטען בהצלחה בזמן: {end_time - start_time:.2f} שניות")
+
         except Exception as e:
-            logging.error(f"שגיאה בטעינת המודל: {e}")
+            self.logger.error(f"שגיאה בטעינת מודל הטקסט: {e}")
             raise Exception(f"Failed to load MedCAT model: {e}")
 
     def extract_symptoms(self, text):
@@ -38,8 +44,8 @@ class TextSymptomAnalyzer:
         Returns:
             list: רשימת סימפטומים שזוהו
         """
-        if not self.cat:
-            raise Exception("Model not loaded")
+        if not self.is_loaded:
+            raise Exception("Text model not loaded. Call load_model() first.")
 
         try:
             # קבלת entities מהטקסט
@@ -68,8 +74,8 @@ class TextSymptomAnalyzer:
             return symptom_entities
 
         except Exception as e:
-            logging.error(f"שגיאה בחילוץ סימפטומים: {e}")
-            raise Exception(f"Failed to extract symptoms: {e}")
+            self.logger.error(f"שגיאה בחילוץ סימפטומים מטקסט: {e}")
+            raise Exception(f"Failed to extract symptoms from text: {e}")
 
     def analyze_text(self, text):
         """
@@ -79,7 +85,7 @@ class TextSymptomAnalyzer:
             text (str): הטקסט לניתוח
 
         Returns:
-            dict: תוצאות הניתוח
+            dict: תוצאות הניתוח המלאות
         """
         symptoms = self.extract_symptoms(text)
 
@@ -87,5 +93,18 @@ class TextSymptomAnalyzer:
             "original_text": text,
             "symptoms_found": len(symptoms),
             "symptoms": symptoms,
-            "analysis_status": "success"
+            "analysis_status": "success",
+            "analyzer_type": "MedCAT"
         }
+
+    def get_status(self):
+        """קבלת סטטוס המודל"""
+        return {
+            "model_loaded": self.is_loaded,
+            "model_path": self.model_path,
+            "analyzer_type": "MedCAT Text Analyzer"
+        }
+
+    def is_ready(self):
+        """בדיקה האם המודל מוכן לשימוש"""
+        return self.is_loaded and self.cat is not None

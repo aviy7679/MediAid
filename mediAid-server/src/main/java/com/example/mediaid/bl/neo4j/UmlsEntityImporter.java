@@ -362,35 +362,90 @@ public class UmlsEntityImporter extends UmlsImporter{
         logger.info("Completed importing {} relationships to Neo4j", importedCount);
     }
 
+//    private void createRelationshipsBatch(List<Map<String, Object>> relationships) {
+//        try (Session session = neo4jDriver.session()) {
+//            session.writeTransaction(tx -> {
+//                int successCount = 0;
+//                for (Map<String, Object> rel : relationships) {
+//                    try {
+//                        String query = "MATCH (n1), (n2) " +
+//                                "WHERE n1.cui = $cui1 AND n2.cui = $cui2 " +
+//                                "CREATE (n1)-[r:" + rel.get("relType") + " {" +
+//                                "weight: $weight, source: $source}]->(n2) " +
+//                                "RETURN 1 as created";
+//
+//                        var result = tx.run(query, rel);
+//                        if (result.hasNext()) {
+//                            successCount++;
+//                        }
+//                    } catch (Exception e) {
+//                        logger.debug("Failed to create relationship '{}' -[{}]-> '{}': {}",
+//                                rel.get("cui1"), rel.get("relType"), rel.get("cui2"), e.getMessage());
+//                    }
+//                }
+//                logger.debug("Successfully created {} relationships in batch", successCount);
+//                return null;
+//            });
+//        } catch (Exception e) {
+//            logger.error("Error creating relationship batch: {}", e.getMessage());
+//        }
+//    }
+
     private void createRelationshipsBatch(List<Map<String, Object>> relationships) {
+        if (relationships.isEmpty()) {
+            return;
+        }
+
+        logger.info("🔄 Creating batch of {} relationships in Neo4j...", relationships.size());
+
         try (Session session = neo4jDriver.session()) {
             session.writeTransaction(tx -> {
                 int successCount = 0;
+                int errorCount = 0;
+
                 for (Map<String, Object> rel : relationships) {
                     try {
-                        String query = "MATCH (n1), (n2) " +
-                                "WHERE n1.cui = $cui1 AND n2.cui = $cui2 " +
-                                "CREATE (n1)-[r:" + rel.get("relType") + " {" +
-                                "weight: $weight, source: $source}]->(n2) " +
-                                "RETURN 1 as created";
+                        String cui1 = (String) rel.get("cui1");
+                        String cui2 = (String) rel.get("cui2");
+                        String relType = (String) rel.get("relType");
+                        Double weight = (Double) rel.get("weight");
+                        String source = (String) rel.get("source");
 
-                        var result = tx.run(query, rel);
-                        if (result.hasNext()) {
-                            successCount++;
+                        // שאילתה פשוטה עם timeout
+                        String query = "MATCH (n1 {cui: $cui1}), (n2 {cui: $cui2}) " +
+                                "CREATE (n1)-[:" + relType + " {weight: $weight, source: $source}]->(n2)";
+
+                        tx.run(query, Map.of(
+                                "cui1", cui1,
+                                "cui2", cui2,
+                                "weight", weight != null ? weight : 0.5,
+                                "source", source != null ? source : "UMLS"
+                        ));
+
+                        successCount++;
+
+                        // הדפס התקדמות כל 100 קשרים
+                        if (successCount % 100 == 0) {
+                            logger.debug("Created {} relationships so far...", successCount);
                         }
+
                     } catch (Exception e) {
-                        logger.debug("Failed to create relationship '{}' -[{}]-> '{}': {}",
-                                rel.get("cui1"), rel.get("relType"), rel.get("cui2"), e.getMessage());
+                        errorCount++;
+                        if (errorCount <= 5) { // הדפס רק 5 שגיאות ראשונות
+                            logger.debug("Failed to create relationship: {}", e.getMessage());
+                        }
                     }
                 }
-                logger.debug("Successfully created {} relationships in batch", successCount);
+
+                logger.info("✅ Batch completed: {} successful, {} errors", successCount, errorCount);
                 return null;
             });
+
         } catch (Exception e) {
-            logger.error("Error creating relationship batch: {}", e.getMessage());
+            logger.error("❌ Critical error in batch creation: {}", e.getMessage());
+            // אל תזרוק חריגה - רק תתעד ותמשיך
         }
     }
-
     public Map<String, Long> getRelationshipStatistics() {
         Map<String, Long> stats = new HashMap<>();
 
