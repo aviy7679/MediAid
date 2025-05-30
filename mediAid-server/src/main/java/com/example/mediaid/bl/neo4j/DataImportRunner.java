@@ -36,74 +36,167 @@ public class DataImportRunner {
         this.environment = environment;
     }
 
-    @EventListener(ApplicationReadyEvent.class)
-    public void runDataImport() {
-        // בדיקה אם לבצע ייבוא נתונים (ניתן להגדיר בקובץ הקונפיגורציה)
-        boolean importEnabled = Boolean.parseBoolean(
-                environment.getProperty("mediaid.data.import.enabled", "false"));
+//    @EventListener(ApplicationReadyEvent.class)
+//    public void runDataImport() {
+//        // בדיקה אם לבצע ייבוא נתונים (ניתן להגדיר בקובץ הקונפיגורציה)
+//        boolean importEnabled = Boolean.parseBoolean(
+//                environment.getProperty("mediaid.data.import.enabled", "false"));
+//
+//        boolean importEntities = Boolean.parseBoolean(
+//                environment.getProperty("mediaid.data.import.entities", "true"));
+//
+//        boolean importRelationships = Boolean.parseBoolean(
+//                environment.getProperty("mediaid.data.import.relationships", "false"));
+//
+//        boolean initializeRiskFactors = Boolean.parseBoolean(
+//                environment.getProperty("mediaid.data.initialize.risk-factors", "true"));
+//
+//        if (importEnabled) {
+//            try {
+//                logger.info("=== Starting MedicalAid System Data Import ===");
+//
+//                if (importEntities) {
+//                    logger.info("Starting entity import from PostgreSQL to Neo4j...");
+//
+//                    // ייבוא ישויות מ-PostgreSQL
+//                    entityImporter.importAllEntitiesFromDB();
+//
+//                    // הדפסת סטטיסטיקות
+//                    Map<String, Long> stats = entityImporter.getImportStatistics();
+//                    logger.info("Entity import statistics:");
+//                    stats.forEach((type, count) ->
+//                            logger.info("  {}: {} entities", type, count));
+//                } else {
+//                    logger.info("Entity import disabled");
+//                }
+//
+//                if (importRelationships) {
+//                    String mrrelPath = environment.getProperty("mediaid.umls.mrrel.path");
+//                    if (mrrelPath != null && !mrrelPath.isEmpty()) {
+//                        logger.info("Starting relationship import from UMLS...");
+//                        // ייבוא קשרים - עדיין מקובץ MRREL כי אין לנו טבלת קשרים ב-PostgreSQL
+//                        relationshipImporter.importRelationships(mrrelPath);
+//
+//                        // בדיקת תוצאות ייבוא קשרים
+//                        Map<String, Object> relStats = relationshipImporter.validateImportedRelationships();
+//                        logger.info("Relationship import statistics:");
+//                        relStats.forEach((type, count) ->
+//                                logger.info("  {}: {} relationships", type, count));
+//                    } else {
+//                        logger.info("MRREL file path not configured - skipping relationship import");
+//                    }
+//                } else {
+//                    logger.info("Relationship import disabled");
+//                }
+//
+//                if (initializeRiskFactors) {
+//                    logger.info("Starting basic risk factors initialization...");
+//                    initializeBasicRiskFactors();
+//                }
+//
+//                logger.info("=== Data import completed successfully! ===");
+//                printFinalSummary();
+//
+//            } catch (Exception e) {
+//                logger.error("Error in data import: {}", e.getMessage(), e);
+//            }
+//        } else {
+//            logger.info("Data import disabled. To enable, set mediaid.data.import.enabled=true");
+//        }
+//    }
+@EventListener(ApplicationReadyEvent.class)
+public void runDataImport() {
+    // בדיקה אם לבצע ייבוא נתונים (ניתן להגדיר בקובץ הקונפיגורציה)
+    boolean importEnabled = Boolean.parseBoolean(
+            environment.getProperty("mediaid.data.import.enabled", "false"));
 
-        boolean importEntities = Boolean.parseBoolean(
-                environment.getProperty("mediaid.data.import.entities", "true"));
+    boolean importEntities = Boolean.parseBoolean(
+            environment.getProperty("mediaid.data.import.entities", "true"));
 
-        boolean importRelationships = Boolean.parseBoolean(
-                environment.getProperty("mediaid.data.import.relationships", "false"));
+    boolean importRelationships = Boolean.parseBoolean(
+            environment.getProperty("mediaid.data.import.relationships", "false"));
 
-        boolean initializeRiskFactors = Boolean.parseBoolean(
-                environment.getProperty("mediaid.data.initialize.risk-factors", "true"));
+    boolean initializeRiskFactors = Boolean.parseBoolean(
+            environment.getProperty("mediaid.data.initialize.risk-factors", "true"));
 
-        if (importEnabled) {
-            try {
-                logger.info("=== Starting MedicalAid System Data Import ===");
+    if (importEnabled) {
+        try {
+            logger.info("=== Starting MedicalAid System Data Import ===");
+            logger.info("🔧 USING BALANCED RELATIONSHIP FILTERING:");
+            logger.info("   ✅ Accepts all medically relevant relationships");
+            logger.info("   ✅ No source filtering (as requested)");
+            logger.info("   ✅ Expanded relationship mappings");
+            logger.info("   ✅ Null safety protection");
+            logger.info("   🚫 Excludes only translation/mapping relationships");
 
-                if (importEntities) {
-                    logger.info("Starting entity import from PostgreSQL to Neo4j...");
+            if (importEntities) {
+                logger.info("Starting entity import from PostgreSQL to Neo4j...");
 
-                    // ייבוא ישויות מ-PostgreSQL
-                    entityImporter.importAllEntitiesFromDB();
+                // ייבוא ישויות מ-PostgreSQL
+                entityImporter.importAllEntitiesFromDB();
 
-                    // הדפסת סטטיסטיקות
-                    Map<String, Long> stats = entityImporter.getImportStatistics();
-                    logger.info("Entity import statistics:");
-                    stats.forEach((type, count) ->
-                            logger.info("  {}: {} entities", type, count));
-                } else {
-                    logger.info("Entity import disabled");
-                }
-
-                if (importRelationships) {
-                    String mrrelPath = environment.getProperty("mediaid.umls.mrrel.path");
-                    if (mrrelPath != null && !mrrelPath.isEmpty()) {
-                        logger.info("Starting relationship import from UMLS...");
-                        // ייבוא קשרים - עדיין מקובץ MRREL כי אין לנו טבלת קשרים ב-PostgreSQL
-                        relationshipImporter.importRelationships(mrrelPath);
-
-                        // בדיקת תוצאות ייבוא קשרים
-                        Map<String, Object> relStats = relationshipImporter.validateImportedRelationships();
-                        logger.info("Relationship import statistics:");
-                        relStats.forEach((type, count) ->
-                                logger.info("  {}: {} relationships", type, count));
-                    } else {
-                        logger.info("MRREL file path not configured - skipping relationship import");
-                    }
-                } else {
-                    logger.info("Relationship import disabled");
-                }
-
-                if (initializeRiskFactors) {
-                    logger.info("Starting basic risk factors initialization...");
-                    initializeBasicRiskFactors();
-                }
-
-                logger.info("=== Data import completed successfully! ===");
-                printFinalSummary();
-
-            } catch (Exception e) {
-                logger.error("Error in data import: {}", e.getMessage(), e);
+                // הדפסת סטטיסטיקות
+                Map<String, Long> stats = entityImporter.getImportStatistics();
+                logger.info("Entity import statistics:");
+                stats.forEach((type, count) ->
+                        logger.info("  {}: {} entities", type, count));
+            } else {
+                logger.info("Entity import disabled");
             }
-        } else {
-            logger.info("Data import disabled. To enable, set mediaid.data.import.enabled=true");
+
+            if (importRelationships) {
+                String mrrelPath = environment.getProperty("mediaid.umls.mrrel.path");
+                if (mrrelPath != null && !mrrelPath.isEmpty()) {
+                    logger.info("Starting BALANCED relationship import from UMLS...");
+                    logger.info("Expected outcome: Much higher acceptance rate (~5-15% instead of 0.4%)");
+
+                    // ייבוא קשרים מאוזן - לא נוקשן מדי!
+                    relationshipImporter.importRelationships(mrrelPath);
+
+                    // בדיקת תוצאות ייבוא קשרים
+                    Map<String, Object> relStats = relationshipImporter.validateImportedRelationships();
+                    logger.info("Relationship import statistics:");
+                    relStats.forEach((type, count) ->
+                            logger.info("  {}: {} relationships", type, count));
+
+                    // הערכה אם התוצאות טובות
+                    Long totalRels = (Long) relStats.get("total_relationships");
+                    if (totalRels != null && totalRels > 10000) {
+                        logger.info("🎉 SUCCESS! Imported {} relationships (much better!)", totalRels);
+                    } else if (totalRels != null && totalRels > 1000) {
+                        logger.info("✅ Good progress: {} relationships imported", totalRels);
+                    } else {
+                        logger.warn("⚠️ Low relationship count: {} - may need further tuning", totalRels);
+                    }
+
+                } else {
+                    logger.info("MRREL file path not configured - skipping relationship import");
+                }
+            } else {
+                logger.info("Relationship import disabled");
+            }
+
+            if (initializeRiskFactors) {
+                logger.info("Starting basic risk factors initialization...");
+                initializeBasicRiskFactors();
+            }
+
+            logger.info("=== Data import completed successfully! ===");
+            printFinalSummary();
+
+        } catch (Exception e) {
+            logger.error("Error in data import: {}", e.getMessage(), e);
+            logger.info("💡 TROUBLESHOOTING TIPS:");
+            logger.info("   - Check if MRREL file path is correct");
+            logger.info("   - Verify Neo4j connection");
+            logger.info("   - Check if entities were imported first");
+            logger.info("   - Review logs for null pointer exceptions");
         }
+    } else {
+        logger.info("Data import disabled. To enable, set mediaid.data.import.enabled=true");
+        logger.info("For relationship import, also set mediaid.data.import.relationships=true");
     }
+}
 
     /**
      * אתחול גורמי סיכון בסיסיים

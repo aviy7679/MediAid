@@ -18,7 +18,7 @@ labels=list(verified_skin_conditions_umls.values())
 #image_path = "C:\\Users\\Student5\\Downloads\\Finger_cut.jpg"
 #image_path="C:\\Users\\Student5\\Downloads\\normal-mole5-56a8808a5f9b58b7d0f2e9e6.jpg"
 #image_path="C:\\Users\\Student5\\Downloads\\Pus_with_blood_coming_out_of_ring_finger,_photographed_in_India,_July_10,_2024.jpg"
-image_path="C:\\Users\\Student5\\Downloads\\shutterstock_2041694828_copy.original.width-320.jpg"
+image_path="D:\\MediAid\\python-project\\image_symptom_extraction\\images\\shutterstock_2041694828_copy.original.width-320.jpg"
 image = preprocess(Image.open(image_path)).unsqueeze(0).to(device)
 
 # המר את התוויות לטקסטים בפורמט של zero-shot

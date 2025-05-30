@@ -844,7 +844,7 @@ const UserDataWizard = () => {
 
       // Success - redirect to profile or dashboard
       alert('Account created successfully! Welcome to MediAid!');
-      window.location.href = '/profile';
+      window.location.href = '/homePage';
       
     } catch (error) {
       console.error('Error submitting data:', error);

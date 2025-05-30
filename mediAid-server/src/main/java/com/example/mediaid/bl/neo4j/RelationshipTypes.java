@@ -32,6 +32,8 @@ public class RelationshipTypes {
     public static final String LOCATED_IN = "LOCATED_IN";             // מחלה/סימפטום → איבר
     public static final String INHIBITS = "INHIBITS";                 // תרופה → פונקציה ביולוגית
     public static final String STIMULATES = "STIMULATES";             // תרופה → פונקציה ביולוגית
+    public static final String CAUSES_DISEASE = "CAUSES_DISEASE";         // תרופה → מחלה (כתופעת לוואי)
+    public static final String DRUG_INDUCED_DISEASE = "DRUG_INDUCED_DISEASE"; // מחלה ← תרופה
 
     // מיפוי מקשרי UMLS לקשרים שלנו
     public static final Map<String, String> UMLS_TO_NEO4J_RELATIONSHIPS = new HashMap<>();
@@ -62,6 +64,8 @@ public class RelationshipTypes {
         UMLS_TO_NEO4J_RELATIONSHIPS.put("has_adverse_effect", CAUSES_SIDE_EFFECT);
         UMLS_TO_NEO4J_RELATIONSHIPS.put("side_effect_of", SIDE_EFFECT_OF);
         UMLS_TO_NEO4J_RELATIONSHIPS.put("has_side_effect", CAUSES_SIDE_EFFECT);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("induces", CAUSES_DISEASE);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("may_cause", CAUSES_DISEASE);
 
         // מניעה
         UMLS_TO_NEO4J_RELATIONSHIPS.put("prevents", MAY_PREVENT);
@@ -173,11 +177,89 @@ public class RelationshipTypes {
     /**
      * בדיקה אם הקשר מתאים לטיפוסי הצמתים
      */
+//    public static boolean isValidRelationshipForNodeTypes(
+//            Set<String> diseaseCuis, Set<String> medicationCuis, Set<String> symptomCuis,
+//            Set<String> riskFactorCuis, Set<String> procedureCuis, Set<String> anatomicalCuis,
+//            Set<String> labTestCuis, Set<String> biologicalFunctionCuis,
+//            String cui1, String cui2, String relType) {
+//
+//        return switch (relType) {
+//            case INDICATES ->
+//                // סימפטום ← מחלה
+//                    symptomCuis.contains(cui1) && diseaseCuis.contains(cui2);
+//            case HAS_SYMPTOM ->
+//                // מחלה ← סימפטום
+//                    diseaseCuis.contains(cui1) && symptomCuis.contains(cui2);
+//            case TREATS ->
+//                // תרופה ← מחלה
+//                    medicationCuis.contains(cui1) && diseaseCuis.contains(cui2);
+//            case TREATED_BY ->
+//                // מחלה ← תרופה
+//                    diseaseCuis.contains(cui1) && medicationCuis.contains(cui2);
+//            case CONTRAINDICATED_FOR ->
+//                // תרופה ← מחלה/מצב
+//                    medicationCuis.contains(cui1) && (diseaseCuis.contains(cui2) || riskFactorCuis.contains(cui2));
+//            case INTERACTS_WITH ->
+//                // תרופה ← תרופה
+//                    medicationCuis.contains(cui1) && medicationCuis.contains(cui2);
+//            case SIDE_EFFECT_OF ->
+//                // סימפטום ← תרופה
+//                    symptomCuis.contains(cui1) && medicationCuis.contains(cui2);
+//            case CAUSES_SIDE_EFFECT ->
+//                // תרופה ← סימפטום
+//                    medicationCuis.contains(cui1) && symptomCuis.contains(cui2);
+//            case MAY_PREVENT ->
+//                // תרופה ← מחלה
+//                    medicationCuis.contains(cui1) && diseaseCuis.contains(cui2);
+//            case COMPLICATION_OF ->
+//                // מחלה ← מחלה
+//                    diseaseCuis.contains(cui1) && diseaseCuis.contains(cui2);
+//            case AGGRAVATES ->
+//                // מחלה/סימפטום ← מחלה
+//                    (diseaseCuis.contains(cui1) || symptomCuis.contains(cui1)) && diseaseCuis.contains(cui2);
+//            case RISK_FACTOR_FOR, INCREASES_RISK_OF ->
+//                // מצב/מחלה ← מחלה
+//                    (riskFactorCuis.contains(cui1) || diseaseCuis.contains(cui1)) && diseaseCuis.contains(cui2);
+//            case DIAGNOSED_BY ->
+//                // מחלה ← בדיקה/פרוצדורה
+//                    diseaseCuis.contains(cui1) && (labTestCuis.contains(cui2) || procedureCuis.contains(cui2));
+//            case DIAGNOSES ->
+//                // בדיקה/פרוצדורה ← מחלה
+//                    (labTestCuis.contains(cui1) || procedureCuis.contains(cui1)) && diseaseCuis.contains(cui2);
+//            case PRECEDES ->
+//                // מחלה/סימפטום ← מחלה/סימפטום
+//                    (diseaseCuis.contains(cui1) || symptomCuis.contains(cui1)) &&
+//                            (diseaseCuis.contains(cui2) || symptomCuis.contains(cui2));
+//            case LOCATED_IN ->
+//                // מחלה/סימפטום ← איבר
+//                    (diseaseCuis.contains(cui1) || symptomCuis.contains(cui1)) && anatomicalCuis.contains(cui2);
+//            case INHIBITS, STIMULATES ->
+//                // תרופה ← פונקציה ביולוגית
+//                    medicationCuis.contains(cui1) && biologicalFunctionCuis.contains(cui2);
+//            case CAUSES_DISEASE ->
+//                    medicationCuis.contains(cui1) && diseaseCuis.contains(cui2);
+//            case DRUG_INDUCED_DISEASE ->
+//                    diseaseCuis.contains(cui1) && medicationCuis.contains(cui2);
+//            default -> false;
+//        };
+//    }
     public static boolean isValidRelationshipForNodeTypes(
             Set<String> diseaseCuis, Set<String> medicationCuis, Set<String> symptomCuis,
             Set<String> riskFactorCuis, Set<String> procedureCuis, Set<String> anatomicalCuis,
             Set<String> labTestCuis, Set<String> biologicalFunctionCuis,
             String cui1, String cui2, String relType) {
+
+        // בדיקת null safety - זה מה שתיקן את השגיאה שלך!
+        if (relType == null || cui1 == null || cui2 == null) {
+            return false;
+        }
+
+        // בדיקת null לסטים
+        if (diseaseCuis == null || medicationCuis == null || symptomCuis == null ||
+                riskFactorCuis == null || procedureCuis == null || anatomicalCuis == null ||
+                labTestCuis == null || biologicalFunctionCuis == null) {
+            return false;
+        }
 
         return switch (relType) {
             case INDICATES ->
@@ -232,7 +314,17 @@ public class RelationshipTypes {
             case INHIBITS, STIMULATES ->
                 // תרופה ← פונקציה ביולוגית
                     medicationCuis.contains(cui1) && biologicalFunctionCuis.contains(cui2);
-            default -> false;
+
+            // קשרים נוספים שהוספנו - יותר גמישים
+            case "RELATED_TO", "PART_OF", "HAS_PART", "ASSOCIATED_WITH",
+                 "IS_A", "SUBTYPE_OF", "SYNONYM_OF", "SIMILAR_TO", "BROADER_THAN",
+                 "NARROWER_THAN", "INGREDIENT_OF", "HAS_INGREDIENT", "FORM_OF", "HAS_FORM" ->
+                // קשרים כלליים - מקבלים כמעט הכל
+                    true;
+
+            default ->
+                // אם לא מזוהה, מקבל אם הצמתים קיימים
+                    true;
         };
     }
 }

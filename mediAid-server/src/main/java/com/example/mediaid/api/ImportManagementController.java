@@ -169,4 +169,32 @@ public class ImportManagementController {
 
         return ResponseEntity.ok(help);
     }
+    // הוספה לקובץ ImportManagementController.java
+    @PostMapping("/process-relationships")
+    public ResponseEntity<Map<String, Object>> processRelationships() {
+        try {
+            String mrrelPath = environment.getProperty("mediaid.umls.mrrel.path");
+            if (mrrelPath == null || mrrelPath.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "MRREL path not configured"));
+            }
+
+            new Thread(() -> {
+                try {
+                    relationshipProcessor.processAndSaveRelationships(mrrelPath);
+                    entityImporter.importRelationshipsFromDB();
+                } catch (Exception e) {
+                    logger.error("Error in relationship processing", e);
+                }
+            }).start();
+
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "message", "Relationship processing started"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
 }
