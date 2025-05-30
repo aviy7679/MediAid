@@ -170,19 +170,17 @@ public class UmlsRelationshipImporter extends UmlsImporter{
      * מבצע ייבוא מקובץ MRREL.RRF - עם טיפול משופר בטרנזקציות
      */
     private void importRelationshipsFromMrrel(String mrrelPath) throws IOException {
-        logger.info("🔍 DEBUG: Function started - this should appear in log!");
+        logger.info("🚀 Starting OPTIMIZED relationship import from {}", mrrelPath);
 
         // ניתוח הקובץ תחילה
         analyzeFileBeforeImport(mrrelPath);
 
-        logger.info("=== DEBUGGING INFO ===");
-        logger.info("PREFERRED_SOURCES: {}", EntityTypes.PREFERRED_SOURCES);
-        logger.info("SUPPORTED_RELATIONSHIPS (first 10): {}",
-                RelationshipTypes.UMLS_TO_NEO4J_RELATIONSHIPS.keySet().stream()
-                        .limit(10).collect(Collectors.toList()));
-        logger.info("File path: {}", mrrelPath);
+        logger.info("=== OPTIMIZED IMPORT CONFIG ===");
+        logger.info("✅ FILTERING ENABLED");
+        logger.info("✅ DUPLICATE PREVENTION ENABLED");
+        logger.info("✅ SELF-LOOP PREVENTION ENABLED");
         logger.info("Batch size: {} relationships per transaction", BATCH_SIZE);
-        logger.info("======================");
+        logger.info("==============================");
 
         // הקשרים שנמצאו ואושרו לייבוא
         List<Map<String, Object>> validRelationships = new ArrayList<>();
@@ -193,114 +191,117 @@ public class UmlsRelationshipImporter extends UmlsImporter{
         int skippedRelationshipNotTargeted = 0;
         int skippedMissingNodes = 0;
         int skippedInvalidNodeTypes = 0;
+        int skippedSelfLoops = 0;
+        int skippedDuplicates = 0;
         int acceptedRelationships = 0;
         int totalCreatedInDb = 0;
 
+        // Cache לקשרים קיימים - לשיפור ביצועים
+        Set<String> existingRelationships = loadExistingRelationships();
+        logger.info("Loaded {} existing relationships to avoid duplicates", existingRelationships.size());
+
         try (BufferedReader reader = new BufferedReader(new FileReader(mrrelPath))) {
             String line;
-            logger.info("🔍 File opened successfully, starting to read lines...");
+            logger.info("🔍 File opened successfully, starting optimized processing...");
 
             while ((line = reader.readLine()) != null) {
                 totalLines++;
 
                 if (totalLines % 1000000 == 0) {
-                    logger.debug("Read {} lines...", totalLines);
+                    logger.info("📊 Processed {} million lines, accepted {} relationships so far",
+                            totalLines / 1000000, acceptedRelationships);
                 }
 
                 // פיצול השורה מ-MRREL.RRF (מופרד ע"י |)
                 String[] fields = line.split("\\|");
-
-                // וידוא שיש מספיק שדות
                 if (fields.length < 15) continue;
 
-                String cui1 = fields[0];  // CUI ראשון
-                String cui2 = fields[4];  // CUI שני
-                String rel = fields[3];   // סוג יחס כללי
-                String rela = fields[7];  // סוג יחס ספציפי
-                String sab = fields[10];  // מקור הנתונים
+                String cui1 = fields[0];
+                String cui2 = fields[4];
+                String rel = fields[3];
+                String rela = fields[7];
+                String sab = fields[10];
 
-                // הדפסת השורות הראשונות לבדיקה
-                if (totalLines <= 10) {
-                    logger.info("🔍 SAMPLE LINE {}: cui1='{}', cui2='{}', rel='{}', rela='{}', sab='{}'",
-                            totalLines, cui1, cui2, rel, rela, sab);
+                // ===== סינונים מופעלים =====
+
+                // 1. מניעת לולאות עצמיות - בדיקה ראשונה ומהירה
+                if (cui1.equals(cui2)) {
+                    skippedSelfLoops++;
+                    continue;
                 }
 
-                // ===== זמני - השבתת כל הסינונים =====
-
-                // 1. סינון לפי מקור מועדף - זמנית מושבת
-                if (!isPreferredSource(sab)) {
+                // 2. סינון לפי מקור מועדף
+                if (!EntityTypes.PREFERRED_SOURCES.contains(sab)) {
                     skippedSourceNotPreferred++;
-                    if (skippedSourceNotPreferred <= 10) {
-                        logger.info("🔍 SKIPPING SOURCE #{}: '{}' (not in preferred list)",
-                                skippedSourceNotPreferred, sab);
-                    }
-                    if (skippedSourceNotPreferred % 1000000 == 0) {
-                        logger.info("🔍 Skipped {} sources so far. Sample rejected sources seen: [{}]",
-                                skippedSourceNotPreferred, sab);
-                    }
                     continue;
                 }
 
-                // 2. סינון לפי סוג היחס - זמנית מושבת
+                // 3. סינון לפי סוג היחס
+                // 3. סינון לפי סוג היחס - זמנית מושבת
                 String relationshipType = determineRelationshipType(rel, rela);
-                if (!isSupportedRelationship(relationshipType)) {
+// קבל הכל חוץ מקשרים ריקים
+                if (relationshipType == null || relationshipType.trim().isEmpty() || relationshipType.equals("unknown")) {
                     skippedRelationshipNotTargeted++;
-                    if (skippedRelationshipNotTargeted <= 10) {
-                        logger.info("🔍 SKIPPING RELATIONSHIP TYPE #{}: '{}' (not supported)",
-                                skippedRelationshipNotTargeted, relationshipType);
-                    }
-                    if (skippedRelationshipNotTargeted % 1000000 == 0) {
-                        logger.info("🔍 Skipped {} relationship types so far. Sample rejected type: '{}'",
-                                skippedRelationshipNotTargeted, relationshipType);
-                    }
                     continue;
                 }
 
-                // 3. סינון לפי קיום הצמתים - זמנית מושבת
+                // 4. בדיקת קיום הצמתים
                 if (!nodeCuiExists(cui1) || !nodeCuiExists(cui2)) {
                     skippedMissingNodes++;
-                    if (skippedMissingNodes <= 10) {
-                        logger.info("🔍 SKIPPING MISSING NODES #{}: '{}' -> '{}' (nodes don't exist)",
-                                skippedMissingNodes, cui1, cui2);
-                    }
                     continue;
                 }
 
-                // 4. סינון לפי טיפוסי הצמתים - זמנית מושבת
-                if (!areNodeTypesValid(cui1, cui2, relationshipType)) {
+                // 5. בדיקת תאימות סוגי הצמתים
+                String neoRelType = RelationshipTypes.UMLS_TO_NEO4J_RELATIONSHIPS.get(relationshipType.toLowerCase());
+                if (!RelationshipTypes.isValidRelationshipForNodeTypes(
+                        diseaseCuis, medicationCuis, symptomCuis,
+                        riskFactorCuis, procedureCuis, anatomicalCuis,
+                        labTestCuis, biologicalFunctionCuis,
+                        cui1, cui2, neoRelType)) {
                     skippedInvalidNodeTypes++;
-                    if (skippedInvalidNodeTypes <= 10) {
-                        logger.info("🔍 SKIPPING INVALID NODE TYPES #{}: '{}' -[{}]-> '{}' (wrong node types)",
-                                skippedInvalidNodeTypes, cui1, relationshipType, cui2);
-                    }
                     continue;
+                }
+
+                // 6. בדיקת קשר כפול - מניעת יצירת קשרים קיימים
+                String relationshipKey = createRelationshipKey(cui1, cui2, neoRelType);
+                if (existingRelationships.contains(relationshipKey)) {
+                    skippedDuplicates++;
+                    continue;
+                }
+                // DEBUG - הדפס כמה דוגמאות של קשרים שנדחים
+                if (skippedRelationshipNotTargeted <= 20) {
+                    logger.info("🔍 REJECTED REL: '{}' / RELA: '{}' -> determined: '{}' (line {})",
+                            rel, rela, relationshipType, totalLines);
                 }
 
                 // הקשר עבר את כל הבדיקות!
-                double weight = calculateRelationshipWeight(relationshipType, sab);
+                double weight = RelationshipTypes.calculateRelationshipWeight(relationshipType, sab);
                 Map<String, Object> relationship = new HashMap<>();
                 relationship.put("cui1", cui1);
                 relationship.put("cui2", cui2);
-                relationship.put("relType", relationshipType);
+                relationship.put("relType", neoRelType);
                 relationship.put("weight", weight);
                 relationship.put("source", sab);
                 validRelationships.add(relationship);
                 acceptedRelationships++;
 
-                // הדפסת קשרים מתקבלים (רק הראשונים כדי לא להציף את הלוג)
-                if (acceptedRelationships <= 50) {
-                    logger.info("🎉 ACCEPTED RELATIONSHIP #{}: '{}' -[{}]-> '{}' (source: {}, weight: {})",
-                            acceptedRelationships, cui1, relationshipType, cui2, sab, weight);
+                // הוספה לcache כדי למנוע כפילויות
+                existingRelationships.add(relationshipKey);
+
+                // הדפסת קשרים מתקבלים (רק הראשונים)
+                if (acceptedRelationships <= 20) {
+                    logger.info("✅ ACCEPTED #{}: '{}' -[{}]-> '{}' (source: {}, weight: {:.2f})",
+                            acceptedRelationships, cui1, neoRelType, cui2, sab, weight);
                 } else if (acceptedRelationships % 5000 == 0) {
-                    logger.info("✅ Processed {} relationships so far (last: '{}' -[{}]-> '{}')",
-                            acceptedRelationships, cui1, relationshipType, cui2);
+                    logger.info("📈 Processed {} relationships (last: '{}' -[{}]-> '{}')",
+                            acceptedRelationships, cui1, neoRelType, cui2);
                 }
 
-                // בדיקה אם הגענו לגודל האצווה - יצירת קשרים ב-Neo4j
+                // יצירת קשרים ב-Neo4j כשמגיעים לגודל האצווה
                 if (validRelationships.size() >= BATCH_SIZE) {
-                    int createdCount = createRelationshipsBatch(validRelationships);
+                    int createdCount = createOptimizedRelationshipsBatch(validRelationships);
                     totalCreatedInDb += createdCount;
-                    logger.info("✅ Created {} relationships in Neo4j (batch {}, total: {})",
+                    logger.info("💾 Created {} relationships in Neo4j (batch {}, total: {})",
                             createdCount, (totalCreatedInDb / BATCH_SIZE), totalCreatedInDb);
                     validRelationships.clear();
                 }
@@ -308,43 +309,41 @@ public class UmlsRelationshipImporter extends UmlsImporter{
 
             // טיפול באצווה האחרונה
             if (!validRelationships.isEmpty()) {
-                int createdCount = createRelationshipsBatch(validRelationships);
+                int createdCount = createOptimizedRelationshipsBatch(validRelationships);
                 totalCreatedInDb += createdCount;
-                logger.info("✅ Created {} relationships in Neo4j (final batch, total: {})",
+                logger.info("💾 Created {} relationships in Neo4j (final batch, total: {})",
                         createdCount, totalCreatedInDb);
             }
 
             // הדפסת סיכום מפורט
-            logger.info("==== Relationship Import Summary ====");
-            logger.info("Total lines read: {}", totalLines);
-            logger.info("Skipped due to non-preferred source: {}", skippedSourceNotPreferred);
-            logger.info("Skipped due to unwanted relationship type: {}", skippedRelationshipNotTargeted);
-            logger.info("Skipped due to missing nodes: {}", skippedMissingNodes);
-            logger.info("Skipped due to invalid node types mismatch: {}", skippedInvalidNodeTypes);
-            logger.info("Total relationships accepted: {}", acceptedRelationships);
-            logger.info("Total relationships created in Neo4j: {}", totalCreatedInDb);
+            logger.info("====== OPTIMIZED IMPORT SUMMARY ======");
+            logger.info("📊 Total lines read: {}", totalLines);
+            logger.info("🚫 Skipped - Non-preferred source: {}", skippedSourceNotPreferred);
+            logger.info("🚫 Skipped - Unsupported relationship: {}", skippedRelationshipNotTargeted);
+            logger.info("🚫 Skipped - Missing nodes: {}", skippedMissingNodes);
+            logger.info("🚫 Skipped - Invalid node types: {}", skippedInvalidNodeTypes);
+            logger.info("🔄 Skipped - Self-loops prevented: {}", skippedSelfLoops);
+            logger.info("📋 Skipped - Duplicates prevented: {}", skippedDuplicates);
+            logger.info("✅ Total relationships accepted: {}", acceptedRelationships);
+            logger.info("💾 Total relationships created in Neo4j: {}", totalCreatedInDb);
 
             // חישוב אחוזים
             if (totalLines > 0) {
                 double rate = (double) acceptedRelationships / totalLines * 100;
-                logger.info("Acceptance rate: {:.4f}% ({} out of {} lines)",
+                logger.info("📈 Acceptance rate: {:.4f}% ({} out of {} lines)",
                         rate, acceptedRelationships, totalLines);
             }
 
-            // מידע סיכום
-            logger.info("🔍 SUMMARY: Import completed successfully!");
-            logger.info("   ✅ {} relationships were created in Neo4j", totalCreatedInDb);
-            logger.info("   📊 You can now validate the relationships using validateImportedRelationships()");
+            logger.info("🎉 OPTIMIZED IMPORT COMPLETED SUCCESSFULLY!");
 
         } catch (IOException e) {
-            logger.error("🚨 ERROR reading file: {}", e.getMessage());
+            logger.error("💥 ERROR reading file: {}", e.getMessage());
             throw e;
         } catch (Exception e) {
-            logger.error("🚨 ERROR during import: {}", e.getMessage(), e);
+            logger.error("💥 ERROR during import: {}", e.getMessage(), e);
             throw new RuntimeException(e);
         }
     }
-
     /**
      * יצירת באצ' של קשרים עם retry logic ומניעת timeout
      */
@@ -454,18 +453,27 @@ public class UmlsRelationshipImporter extends UmlsImporter{
     private String determineRelationshipType(String rel, String rela) {
         // תחילה נסה rela (זה יותר ספציפי)
         if (rela != null && !rela.trim().isEmpty()) {
-            return normalizeRelationshipType(rela.trim());
+            String normalized = rela.trim().toLowerCase();
+            // בדיקה ישירה במיפוי
+            if (RelationshipTypes.UMLS_TO_NEO4J_RELATIONSHIPS.containsKey(normalized)) {
+                return normalized;
+            }
+            // אם לא נמצא, החזר את rela כמו שהוא (פחות סינון)
+            return normalized;
         }
 
         // אם אין rela, השתמש ב-rel
         if (rel != null && !rel.trim().isEmpty()) {
-            return normalizeRelationshipType(rel.trim());
+            String normalized = rel.trim().toLowerCase();
+            if (RelationshipTypes.UMLS_TO_NEO4J_RELATIONSHIPS.containsKey(normalized)) {
+                return normalized;
+            }
+            // אם לא נמצא, החזר את rel כמו שהוא (פחות סינון)
+            return normalized;
         }
 
-        return "RELATED_TO"; // ברירת מחדל
-    }
-
-    private String normalizeRelationshipType(String type) {
+        return "related_to"; // ברירת מחדל שמקבלת
+    }    private String normalizeRelationshipType(String type) {
         // המרה פשוטה - נקה והחלף
         return type.toLowerCase()
                 .replace(" ", "_")
@@ -768,5 +776,217 @@ public class UmlsRelationshipImporter extends UmlsImporter{
         }
 
         return analysis;
+    }
+    /**
+     * טוען קשרים קיימים מהגרף למניעת כפילויות
+     */
+    private Set<String> loadExistingRelationships() {
+        logger.info("Loading existing relationships to prevent duplicates...");
+        Set<String> existing = new HashSet<>();
+
+        try (Session session = neo4jDriver.session()) {
+            session.readTransaction(tx -> {
+                var result = tx.run(
+                        "MATCH (n1)-[r]->(n2) " +
+                                "WHERE n1.cui IS NOT NULL AND n2.cui IS NOT NULL " +
+                                "RETURN n1.cui as cui1, n2.cui as cui2, type(r) as relType " +
+                                "LIMIT 1000000"  // מגביל ל-1 מליון כדי לא לטעון יותר מדי
+                );
+
+                result.forEachRemaining(record -> {
+                    String cui1 = record.get("cui1").asString();
+                    String cui2 = record.get("cui2").asString();
+                    String relType = record.get("relType").asString();
+                    existing.add(createRelationshipKey(cui1, cui2, relType));
+                });
+
+                return null;
+            });
+        } catch (Exception e) {
+            logger.warn("Could not load existing relationships: {}", e.getMessage());
+        }
+
+        return existing;
+    }
+
+    /**
+     * יוצר מפתח ייחודי לקשר
+     */
+    private String createRelationshipKey(String cui1, String cui2, String relType) {
+        return cui1 + "|" + relType + "|" + cui2;
+    }
+
+    /**
+     * יצירת באצ' מהיר ומותאם של קשרים
+     */
+    private int createOptimizedRelationshipsBatch(List<Map<String, Object>> relationships) {
+        if (relationships.isEmpty()) {
+            return 0;
+        }
+
+        try (Session session = neo4jDriver.session()) {
+            return session.writeTransaction(tx -> {
+                int successCount = 0;
+
+                for (Map<String, Object> rel : relationships) {
+                    String cui1 = (String) rel.get("cui1");
+                    String cui2 = (String) rel.get("cui2");
+                    String relType = (String) rel.get("relType");
+                    double weight = (double) rel.get("weight");
+                    String source = (String) rel.get("source");
+
+                    try {
+                        // שאילתה מותאמת עם מניעת כפילויות
+                        String query = "MATCH (n1), (n2) " +
+                                "WHERE n1.cui = $cui1 AND n2.cui = $cui2 " +
+                                "AND NOT EXISTS((n1)-[:" + relType + "]->(n2)) " +  // מניעת כפילויות
+                                "CREATE (n1)-[r:" + relType + " {weight: $weight, source: $source}]->(n2) " +
+                                "RETURN 1 as created";
+
+                        var result = tx.run(query, Map.of(
+                                "cui1", cui1,
+                                "cui2", cui2,
+                                "weight", weight,
+                                "source", source
+                        ));
+
+                        if (result.hasNext()) {
+                            successCount++;
+                        }
+
+                    } catch (Exception e) {
+                        logger.debug("Failed to create relationship '{}' -[{}]-> '{}': {}",
+                                cui1, relType, cui2, e.getMessage());
+                    }
+                }
+
+                return successCount;
+            });
+        } catch (Exception e) {
+            logger.error("Error in optimized batch creation: {}", e.getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * ניקוי לולאות עצמיות קיימות מהגרף
+     */
+    public int cleanSelfLoops() {
+        logger.info("🧹 Starting cleanup of self-loops in the graph...");
+
+        try (Session session = neo4jDriver.session()) {
+            return session.writeTransaction(tx -> {
+                // ספירת לולאות עצמיות לפני הניקוי
+                var countResult = tx.run("MATCH (n)-[r]->(n) RETURN count(r) as total");
+                int totalSelfLoops = countResult.hasNext() ?
+                        (int) countResult.next().get("total").asLong() : 0;
+
+                logger.info("Found {} self-loops to clean", totalSelfLoops);
+
+                if (totalSelfLoops == 0) {
+                    return 0;
+                }
+
+                // מחיקת כל הלולאות העצמיות
+                var deleteResult = tx.run("MATCH (n)-[r]->(n) DELETE r");
+
+                logger.info("✅ Successfully cleaned {} self-loops from the graph", totalSelfLoops);
+                return totalSelfLoops;
+            });
+
+        } catch (Exception e) {
+            logger.error("❌ Error cleaning self-loops: {}", e.getMessage(), e);
+            return 0;
+        }
+    }
+
+    /**
+     * ניתוח ובדיקת הגרף הנוכחי
+     */
+    public Map<String, Object> analyzeCurrentGraph() {
+        Map<String, Object> analysis = new HashMap<>();
+
+        try (Session session = neo4jDriver.session()) {
+            session.readTransaction(tx -> {
+                // ספירת לולאות עצמיות
+                var selfLoopsResult = tx.run("MATCH (n)-[r]->(n) RETURN count(r) as total, collect(distinct type(r)) as types");
+                if (selfLoopsResult.hasNext()) {
+                    var record = selfLoopsResult.next();
+                    analysis.put("self_loops_count", record.get("total").asLong());
+                    analysis.put("self_loops_types", record.get("types").asList());
+                }
+
+                // ספירת כלל הקשרים
+                var totalRelsResult = tx.run("MATCH ()-[r]->() RETURN count(r) as total");
+                if (totalRelsResult.hasNext()) {
+                    analysis.put("total_relationships", totalRelsResult.next().get("total").asLong());
+                }
+
+                // ספירת קשרים כפולים
+                var duplicatesResult = tx.run(
+                        "MATCH (n1)-[r1]->(n2), (n1)-[r2]->(n2) " +
+                                "WHERE r1 <> r2 AND type(r1) = type(r2) " +
+                                "RETURN count(*) as duplicates"
+                );
+                if (duplicatesResult.hasNext()) {
+                    analysis.put("duplicate_relationships", duplicatesResult.next().get("duplicates").asLong());
+                }
+
+                // ספירת צמתים
+                var nodesResult = tx.run("MATCH (n) RETURN count(n) as total");
+                if (nodesResult.hasNext()) {
+                    analysis.put("total_nodes", nodesResult.next().get("total").asLong());
+                }
+
+                return null;
+            });
+
+            logger.info("📊 Graph Analysis Results:");
+            analysis.forEach((key, value) ->
+                    logger.info("   {}: {}", key, value));
+
+        } catch (Exception e) {
+            logger.error("Error analyzing graph: {}", e.getMessage());
+            analysis.put("error", e.getMessage());
+        }
+
+        return analysis;
+    }
+
+    /**
+     * פונקציה מקיפה לניקוי הגרף
+     */
+    public Map<String, Object> performFullGraphCleanup() {
+        logger.info("🧹 Starting FULL graph cleanup...");
+
+        Map<String, Object> results = new HashMap<>();
+
+        // 1. ניתוח ראשוני
+        Map<String, Object> beforeAnalysis = analyzeCurrentGraph();
+        results.put("before_cleanup", beforeAnalysis);
+
+        // 2. ניקוי לולאות עצמיות
+        int selfLoopsRemoved = cleanSelfLoops();
+        results.put("self_loops_removed", selfLoopsRemoved);
+
+        // 3. ניתוח סופי
+        Map<String, Object> afterAnalysis = analyzeCurrentGraph();
+        results.put("after_cleanup", afterAnalysis);
+
+        // 4. סיכום
+        long totalRelsBefore = (Long) beforeAnalysis.getOrDefault("total_relationships", 0L);
+        long totalRelsAfter = (Long) afterAnalysis.getOrDefault("total_relationships", 0L);
+        long totalRemoved = totalRelsBefore - totalRelsAfter;
+
+        results.put("total_relationships_removed", totalRemoved);
+        results.put("cleanup_completed", true);
+
+        logger.info("🎉 CLEANUP COMPLETED!");
+        logger.info("   📊 Relationships before: {}", totalRelsBefore);
+        logger.info("   📊 Relationships after: {}", totalRelsAfter);
+        logger.info("   🗑️ Total removed: {}", totalRemoved);
+        logger.info("   🔄 Self-loops removed: {}", selfLoopsRemoved);
+
+        return results;
     }
 }

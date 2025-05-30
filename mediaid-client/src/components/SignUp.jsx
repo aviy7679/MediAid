@@ -75,7 +75,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
 import { auth } from '../authUtils'; 
-const API_URL = 'http://localhost:8080';
+import { API_ENDPOINTS } from '../apiConfig';
 
 function SignIn() {
   const [formData, setFormData] = useState({
@@ -123,7 +123,7 @@ function SignIn() {
       }
       
       // Make API call
-      const response = await axios.post(`${API_URL}/signUp`, formData, {
+      const response = await axios.post(API_ENDPOINTS.SIGNUP, formData, {
         headers: {
           'Content-Type': 'application/json'
         }

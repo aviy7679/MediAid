@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Heart, Pill, Stethoscope, Activity, Calendar, TrendingUp, AlertTriangle, Edit, Plus } from 'lucide-react';
+import { API_ENDPOINTS } from '../apiConfig';
 
 const UserProfile = () => {
   const [profileData, setProfileData] = useState(null);
@@ -14,7 +15,7 @@ const UserProfile = () => {
   const fetchUserProfile = async () => {
     try {
       const token = localStorage.getItem('mediaid_token');
-      const response = await fetch('http://localhost:8080/api/user/profile', {
+      const response = await fetch(API_ENDPOINTS.USER_PROFILE, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { auth } from '../authUtils'; 
+import { API_ENDPOINTS } from '../apiConfig';
+
 
 const RiskFactorForm = () => {
   // מצב הטופס - כל שדה נשמר כאן
@@ -169,7 +171,7 @@ const RiskFactorForm = () => {
 
       console.log('שולח נתונים:', dataToSend);
 
-      const response = await fetch('/api/user/risk-factors', {
+      const response = await fetch(API_ENDPOINTS.RISK_FACTORS, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

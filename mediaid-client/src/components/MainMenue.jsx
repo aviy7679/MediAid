@@ -1,9 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   User, Heart, Pill, Stethoscope, Upload, Search, AlertTriangle, 
-  TrendingUp, Calendar, Activity, Bell, Settings, LogOut, Plus
+  TrendingUp, Calendar, Activity, Bell, Settings, LogOut, Plus, FileText
 } from 'lucide-react';
+import { API_ENDPOINTS } from '../apiConfig';
+
 
 const MainMenu = () => {
   const [userProfile, setUserProfile] = useState(null);
@@ -27,7 +28,7 @@ const MainMenu = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:8080/api/user/profile', {
+      const response = await fetch(API_ENDPOINTS.USER_PROFILE, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -134,10 +135,17 @@ const MainMenu = () => {
       onClick: () => navigate('/fillUserData')
     },
     {
+      title: 'Treatment Guidelines',
+      description: 'Access evidence-based treatment recommendations',
+      icon: FileText,
+      color: 'bg-purple-500 hover:bg-purple-600',
+      onClick: () => navigate('/treatment-guidelines')
+    },
+    {
       title: 'Health Profile',
       description: 'View and manage your complete health information',
       icon: User,
-      color: 'bg-purple-500 hover:bg-purple-600',
+      color: 'bg-indigo-500 hover:bg-indigo-600',
       onClick: () => navigate('/profile')
     }
   ];
@@ -302,7 +310,7 @@ const MainMenu = () => {
         {/* Quick Actions */}
         <div className="mb-8">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
             {quickActions.map((action, index) => {
               const Icon = action.icon;
               return (

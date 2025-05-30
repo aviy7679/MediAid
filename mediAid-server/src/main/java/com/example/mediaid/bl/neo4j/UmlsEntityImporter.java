@@ -1,6 +1,24 @@
 package com.example.mediaid.bl.neo4j;
 
-import com.example.mediaid.dal.UMLS_terms.*;
+
+import com.example.mediaid.dal.UMLS_terms.Disease;
+import com.example.mediaid.dal.UMLS_terms.DiseaseRepository;
+import com.example.mediaid.dal.UMLS_terms.Medication;
+import com.example.mediaid.dal.UMLS_terms.MedicationRepository;
+import com.example.mediaid.dal.UMLS_terms.Symptom;
+import com.example.mediaid.dal.UMLS_terms.SymptomRepository;
+import com.example.mediaid.dal.UMLS_terms.RiskFactor;
+import com.example.mediaid.dal.UMLS_terms.RiskFactorRepository;
+import com.example.mediaid.dal.UMLS_terms.Procedure;
+import com.example.mediaid.dal.UMLS_terms.ProcedureRepository;
+import com.example.mediaid.dal.UMLS_terms.AnatomicalStructure;
+import com.example.mediaid.dal.UMLS_terms.AnatomicalStructureRepository;
+import com.example.mediaid.dal.UMLS_terms.LabTest;
+import com.example.mediaid.dal.UMLS_terms.LabTestRepository;
+import com.example.mediaid.dal.UMLS_terms.BiologicalFunction;
+import com.example.mediaid.dal.UMLS_terms.BiologicalFunctionRepository;
+
+
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Session;
 import org.slf4j.Logger;

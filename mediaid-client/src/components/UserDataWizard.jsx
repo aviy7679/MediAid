@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronRight, ChevronLeft, Check, User, Heart, Pill, Stethoscope } from 'lucide-react';
+import { API_ENDPOINTS } from '../apiConfig';
 
 // Step Components
 const BasicInfoStep = ({ data, onUpdate, onNext }) => {
@@ -326,8 +327,8 @@ const MedicationsStep = ({ data, onUpdate, onNext, onPrev }) => {
 
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8080/api/medications/search?query=${encodeURIComponent(searchQuery)}&limit=10`);
-      if (response.ok) {
+      const url = buildSearchUrl(API_ENDPOINTS.SEARCH_MEDICATIONS, searchQuery, 10); // ✅ משתמש בקונפיגורציה
+      const response = await fetch(url);      if (response.ok) {
         const data = await response.json();
         setSearchResults(data);
       } else {
@@ -501,6 +502,8 @@ const DiseasesStep = ({ data, onUpdate, onNext, onPrev }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
 
   const searchDiseases = async () => {
     if (!searchQuery || searchQuery.length < 2) {
@@ -510,8 +513,9 @@ const DiseasesStep = ({ data, onUpdate, onNext, onPrev }) => {
 
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8080/api/diseases/search?query=${encodeURIComponent(searchQuery)}&limit=10`);
-      if (response.ok) {
+      const url = buildSearchUrl(API_ENDPOINTS.SEARCH_DISEASES, searchQuery, 10); // ✅ משתמש בקונפיגורציה
+      const response = await fetch(url);
+        if (response.ok) {
         const data = await response.json();
         setSearchResults(data);
       } else {
@@ -731,7 +735,7 @@ const UserDataWizard = () => {
     setIsSubmitting(true);
     try {
       // Step 1: Create user account
-      const signUpResponse = await fetch('http://localhost:8080/api/user/create-account', {
+      const signUpResponse = await fetch(API_ENDPOINTS.CREATE_ACCOUNT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -758,7 +762,7 @@ const UserDataWizard = () => {
 
       // Step 2: Submit risk factors if provided
       if (userData.smokingStatus || userData.alcoholConsumption || userData.physicalActivity) {
-        const riskFactorsResponse = await fetch('http://localhost:8080/api/user/risk-factors', {
+        const riskFactorsResponse = await fetch(API_ENDPOINTS.RISK_FACTORS, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -786,7 +790,7 @@ const UserDataWizard = () => {
 
       // Step 3: Submit medications if provided
       if (userData.medications && userData.medications.length > 0) {
-        const medicationsResponse = await fetch('http://localhost:8080/api/user/medications', {
+        const medicationsResponse = await fetch(API_ENDPOINTS.USER_MEDICATIONS, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -814,7 +818,7 @@ const UserDataWizard = () => {
 
       // Step 4: Submit diseases if provided
       if (userData.diseases && userData.diseases.length > 0) {
-        const diseasesResponse = await fetch('http://localhost:8080/api/user/diseases', {
+        const diseasesResponse = await fetch(API_ENDPOINTS.USER_DISEASES, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',

@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { API_ENDPOINTS } from '../apiConfig';
 
 const MedicationSearch = () => {
   const [query, setQuery] = useState('');
@@ -38,9 +39,8 @@ const MedicationSearch = () => {
     
     setLoading(true);
     try {
-      const BASE_URL = 'http://localhost:8080';
       
-      const response = await fetch(`${BASE_URL}/api/medications/search?query=${encodeURIComponent(query)}`);
+      const response = await fetch(API_ENDPOINTS.SEARCH_MEDICATIONS);
       if (!response.ok) {
         // הדפסת פרטי השגיאה לדיבאג
         const errorText = await response.text();

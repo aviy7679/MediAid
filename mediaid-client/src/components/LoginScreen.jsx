@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Heart, User, Lock, Mail, ArrowRight, UserPlus } from 'lucide-react';
+import { API_ENDPOINTS } from '../apiConfig';
 
 const LoginScreen = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -22,7 +23,7 @@ const LoginScreen = () => {
     setErrorMessage('');
     
     try {
-      const response = await fetch('http://localhost:8080/logIn', {
+      const response = await fetch(API_ENDPOINTS.LOGIN, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(loginData)

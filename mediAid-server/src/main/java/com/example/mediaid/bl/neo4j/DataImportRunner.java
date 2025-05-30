@@ -20,14 +20,14 @@ public class DataImportRunner {
 
     private final UmlsEntityImporter entityImporter;
     private final UmlsRelationshipImporter relationshipImporter;
-    private final RiskFactorService riskFactorService;
+    private final RiskFactorSer riskFactorService;
     private final Environment environment;
 
     @Autowired
     public DataImportRunner(
             UmlsEntityImporter entityImporter,
             UmlsRelationshipImporter relationshipImporter,
-            RiskFactorService riskFactorService,
+            RiskFactorSer riskFactorService,
             Environment environment) {
 
         this.entityImporter = entityImporter;

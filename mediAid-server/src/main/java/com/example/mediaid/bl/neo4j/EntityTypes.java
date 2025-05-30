@@ -14,7 +14,7 @@ public class EntityTypes {
     public static final String DISEASE = "Disease";
     public static final String MEDICATION = "Medication";
     public static final String SYMPTOM = "Symptom";
-    public static final String RISK_FACTOR = "RiskFactor";
+    public static final String RISK_FACTOR = "RiskFactorSer";
     public static final String PROCEDURE = "Procedure";
     public static final String BIOLOGICAL_FUNCTION = "BiologicalFunction";
     public static final String ANATOMICAL_STRUCTURE = "AnatomicalStructure";
