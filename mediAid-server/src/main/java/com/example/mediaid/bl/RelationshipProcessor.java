@@ -166,7 +166,7 @@ public class RelationshipProcessor {
 
 
     private ProcessResult processLine(String line) {
-        logger.info("💯💯💯💯💯Processing line: {} in demo mode", line);
+        logger.debug("Processing line: {}", line);
         String[] fields = line.split("\\|");
         if (fields.length < 15) {
             return new ProcessResult(null, SkipReason.INVALID_FORMAT);
@@ -178,28 +178,29 @@ public class RelationshipProcessor {
         String rela = fields[7];
         String sab = fields[10];
 
-        if(DemoMode.MODE){
-            if(!DemoMode.DEMO_MODES.contains(cui1) || !DemoMode.DEMO_MODES.contains(cui2)){
+        // 1. בדיקת מצב דמו - FIRST FILTER
+        if (DemoMode.MODE) {
+            if (!DemoMode.isRelationshipRelevantForDemo(cui1, cui2)) {
                 return new ProcessResult(null, SkipReason.NON_DEMO_RELEVANT);
             }
         }
 
-        // סינון 1: מניעת לולאות עצמיות
+        // 2. מניעת לולאות עצמיות
         if (cui1.equals(cui2)) {
             return new ProcessResult(null, SkipReason.SELF_LOOP);
         }
 
-        // סינון 2: מקורות מועדפים
-        if (!DemoMode.MODE && (!EntityTypes.PREFERRED_SOURCES.contains(sab))) {
+        // 3. בדיקת מקורות מועדפים (רק אם לא במצב דמו)
+        if (!DemoMode.MODE && !EntityTypes.PREFERRED_SOURCES.contains(sab)) {
             return new ProcessResult(null, SkipReason.NON_PREFERRED_SOURCE);
         }
 
-        // סינון 3: קיום צמתים
+        // 4. בדיקת קיום צמתים (רק אם לא במצב דמו)
         if (!DemoMode.MODE && (!existingCuis.contains(cui1) || !existingCuis.contains(cui2))) {
             return new ProcessResult(null, SkipReason.MISSING_NODES);
         }
 
-        // סינון 4: סוג קשר תקין
+        // 5. קביעת סוג קשר
         String relationshipType = determineRelationshipType(rel, rela);
         if (relationshipType == null) {
             return new ProcessResult(null, SkipReason.INVALID_RELATION_TYPE);
@@ -207,9 +208,9 @@ public class RelationshipProcessor {
 
         String neoRelType = RelationshipTypes.UMLS_TO_NEO4J_RELATIONSHIPS.get(relationshipType.toLowerCase());
         if (neoRelType == null) {
-            if(DemoMode.MODE){
+            if (DemoMode.MODE) {
                 neoRelType = normalizeRelationshipType(relationshipType);
-            }else{
+            } else {
                 return new ProcessResult(null, SkipReason.INVALID_RELATION_TYPE);
             }
         }
@@ -225,8 +226,7 @@ public class RelationshipProcessor {
         relationship.setOriginalRela(rela);
 
         return new ProcessResult(relationship, null);
-    }
-    private void loadExistingCuis() {
+    }    private void loadExistingCuis() {
             existingCuis = new HashSet<>();
             diseaseCuis = new HashSet<>();
             medicationCuis = new HashSet<>();

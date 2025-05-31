@@ -1,6 +1,7 @@
 package com.example.mediaid.bl.neo4j;
 
 
+import com.example.mediaid.bl.DemoMode;
 import com.example.mediaid.dal.UMLS_terms.Disease;
 import com.example.mediaid.dal.UMLS_terms.DiseaseRepository;
 import com.example.mediaid.dal.UMLS_terms.Medication;
@@ -498,5 +499,62 @@ public class UmlsEntityImporter extends UmlsImporter{
 
         return stats;
     }
+    public void importDemoEntitiesFromDB() {
+        if (!DemoMode.MODE) {
+            logger.info("Not in demo mode - importing all entities");
+            importAllEntitiesFromDB();
+            return;
+        }
+
+        logger.info("Demo mode ON - importing only demo-relevant entities");
+
+        try {
+            // ייבוא מחלות רלוונטיות לדמו
+            List<Disease> demoRelevantDiseases = diseaseRepository.findAll().stream()
+                    .filter(d -> DemoMode.isRelevantForDemo(d.getCui()))
+                    .toList();
+            logger.info("Found {} demo-relevant diseases", demoRelevantDiseases.size());
+
+            if (!demoRelevantDiseases.isEmpty()) {
+                List<Map<String, Object>> diseaseBatch = demoRelevantDiseases.stream()
+                        .map(this::mapDisease)
+                        .toList();
+                createEntitiesInBatch(diseaseBatch);
+            }
+
+            // ייבוא תרופות רלוונטיות לדמו
+            List<Medication> demoRelevantMedications = medicationRepository.findAll().stream()
+                    .filter(m -> DemoMode.isRelevantForDemo(m.getCui()))
+                    .toList();
+            logger.info("Found {} demo-relevant medications", demoRelevantMedications.size());
+
+            if (!demoRelevantMedications.isEmpty()) {
+                List<Map<String, Object>> medicationBatch = demoRelevantMedications.stream()
+                        .map(this::mapMedication)
+                        .toList();
+                createEntitiesInBatch(medicationBatch);
+            }
+
+            // ייבוא סימפטומים רלוונטיים לדמו
+            List<Symptom> demoRelevantSymptoms = symptomRepository.findAll().stream()
+                    .filter(s -> DemoMode.isRelevantForDemo(s.getCui()))
+                    .toList();
+            logger.info("Found {} demo-relevant symptoms", demoRelevantSymptoms.size());
+
+            if (!demoRelevantSymptoms.isEmpty()) {
+                List<Map<String, Object>> symptomBatch = demoRelevantSymptoms.stream()
+                        .map(this::mapSymptom)
+                        .toList();
+                createEntitiesInBatch(symptomBatch);
+            }
+
+            logger.info("Demo entity import completed successfully");
+
+        } catch (Exception e) {
+            logger.error("Error in demo entity import: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
 }
 
