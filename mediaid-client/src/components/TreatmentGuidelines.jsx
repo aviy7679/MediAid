@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   FileText, Download, Search, Filter, Clock, AlertCircle, 
-  CheckCircle, Info, ArrowLeft, Printer, Share2, Star
+  CheckCircle, Info, ArrowLeft, Printer, Share2, Star, BookOpen
 } from 'lucide-react';
 
 const TreatmentGuidelines = () => {
@@ -13,7 +13,12 @@ const TreatmentGuidelines = () => {
   const [selectedGuideline, setSelectedGuideline] = useState(null);
   const [favorites, setFavorites] = useState([]);
 
-  // קטגוריות הנחיות
+  // Navigation function
+  const navigate = (path) => {
+    window.location.href = path;
+  };
+
+  // Guidelines categories
   const categories = [
     { id: 'all', name: 'All Guidelines', icon: FileText },
     { id: 'emergency', name: 'Emergency Care', icon: AlertCircle },
@@ -42,7 +47,7 @@ const TreatmentGuidelines = () => {
         const data = await response.json();
         setGuidelines(data);
       } else {
-        // Fallback data עד שהשרת יהיה מוכן
+        // Fallback data until server is ready
         setGuidelines(mockGuidelines);
       }
     } catch (err) {
@@ -77,7 +82,6 @@ const TreatmentGuidelines = () => {
   });
 
   const handleDownload = (guideline) => {
-    // יצירת PDF או הורדת המסמך
     const element = document.createElement('a');
     const file = new Blob([guideline.content], { type: 'text/plain' });
     element.href = URL.createObjectURL(file);
@@ -108,8 +112,8 @@ const TreatmentGuidelines = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading treatment guidelines...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-8"></div>
+          <p className="text-xl text-gray-600">Loading treatment guidelines...</p>
         </div>
       </div>
     );
@@ -120,48 +124,48 @@ const TreatmentGuidelines = () => {
       <div className="min-h-screen bg-gray-50">
         {/* Header */}
         <div className="bg-white shadow-sm border-b border-gray-200 print:hidden">
-          <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="max-w-7xl mx-auto px-8 py-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <button
                   onClick={() => setSelectedGuideline(null)}
-                  className="mr-4 p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100"
+                  className="mr-6 p-3 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
                 >
-                  <ArrowLeft className="w-5 h-5" />
+                  <ArrowLeft className="w-6 h-6" />
                 </button>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">{selectedGuideline.title}</h1>
-                  <p className="text-gray-600 mt-1">{selectedGuideline.description}</p>
+                  <h1 className="text-3xl font-bold text-gray-900">{selectedGuideline.title}</h1>
+                  <p className="text-xl text-gray-600 mt-2">{selectedGuideline.description}</p>
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-4">
                 <button
                   onClick={() => toggleFavorite(selectedGuideline.id)}
-                  className={`p-2 rounded-lg transition-colors ${
+                  className={`p-3 rounded-lg transition-colors ${
                     favorites.includes(selectedGuideline.id)
                       ? 'text-yellow-500 bg-yellow-50 hover:bg-yellow-100'
                       : 'text-gray-500 hover:text-yellow-500 hover:bg-gray-100'
                   }`}
                 >
-                  <Star className="w-5 h-5" />
+                  <Star className="w-6 h-6" />
                 </button>
                 <button
                   onClick={handlePrint}
-                  className="p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100"
+                  className="p-3 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100"
                 >
-                  <Printer className="w-5 h-5" />
+                  <Printer className="w-6 h-6" />
                 </button>
                 <button
                   onClick={() => handleShare(selectedGuideline)}
-                  className="p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100"
+                  className="p-3 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100"
                 >
-                  <Share2 className="w-5 h-5" />
+                  <Share2 className="w-6 h-6" />
                 </button>
                 <button
                   onClick={() => handleDownload(selectedGuideline)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center font-medium"
                 >
-                  <Download className="w-4 h-4 mr-2" />
+                  <Download className="w-5 h-5 mr-2" />
                   Download
                 </button>
               </div>
@@ -170,18 +174,18 @@ const TreatmentGuidelines = () => {
         </div>
 
         {/* Content */}
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          <div className="bg-white rounded-lg shadow-sm p-8">
+        <div className="max-w-5xl mx-auto px-8 py-12">
+          <div className="bg-white rounded-xl shadow-lg p-12">
             {/* Meta information */}
-            <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="mb-8 p-6 bg-blue-50 rounded-xl">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <span className="font-medium text-gray-700">Category:</span>
-                  <span className="ml-2 text-blue-600 capitalize">{selectedGuideline.category}</span>
+                  <span className="font-semibold text-gray-700 text-lg">Category:</span>
+                  <span className="ml-3 text-blue-600 capitalize text-lg">{selectedGuideline.category}</span>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-700">Priority:</span>
-                  <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
+                  <span className="font-semibold text-gray-700 text-lg">Priority:</span>
+                  <span className={`ml-3 px-3 py-1 rounded-full text-sm font-medium ${
                     selectedGuideline.priority === 'high' ? 'bg-red-100 text-red-800' :
                     selectedGuideline.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
                     'bg-green-100 text-green-800'
@@ -190,33 +194,33 @@ const TreatmentGuidelines = () => {
                   </span>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-700">Last Updated:</span>
-                  <span className="ml-2 text-gray-600">{selectedGuideline.lastUpdated}</span>
+                  <span className="font-semibold text-gray-700 text-lg">Last Updated:</span>
+                  <span className="ml-3 text-gray-600">{selectedGuideline.lastUpdated}</span>
                 </div>
               </div>
             </div>
 
             {/* Main content */}
-            <div className="prose prose-lg max-w-none">
+            <div className="prose prose-lg max-w-none text-lg leading-relaxed">
               <div dangerouslySetInnerHTML={{ __html: selectedGuideline.content }} />
             </div>
 
             {/* Related guidelines */}
             {selectedGuideline.relatedGuidelines && selectedGuideline.relatedGuidelines.length > 0 && (
-              <div className="mt-8 pt-6 border-t border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Related Guidelines</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="mt-12 pt-8 border-t border-gray-200">
+                <h3 className="text-2xl font-semibold text-gray-900 mb-6">Related Guidelines</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {selectedGuideline.relatedGuidelines.map((related) => (
                     <div
                       key={related.id}
-                      className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 cursor-pointer transition-colors"
+                      className="p-6 border-2 border-gray-200 rounded-xl hover:border-blue-300 cursor-pointer transition-colors"
                       onClick={() => {
                         const relatedGuideline = guidelines.find(g => g.id === related.id);
                         if (relatedGuideline) setSelectedGuideline(relatedGuideline);
                       }}
                     >
-                      <h4 className="font-medium text-gray-900">{related.title}</h4>
-                      <p className="text-sm text-gray-600 mt-1">{related.description}</p>
+                      <h4 className="font-semibold text-gray-900 text-lg">{related.title}</h4>
+                      <p className="text-gray-600 mt-2">{related.description}</p>
                     </div>
                   ))}
                 </div>
@@ -232,42 +236,47 @@ const TreatmentGuidelines = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-6">
+        <div className="max-w-7xl mx-auto px-8 py-8">
           <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Treatment Guidelines</h1>
-              <p className="text-gray-600 mt-2">Evidence-based medical treatment recommendations</p>
+            <div className="flex items-center">
+              <button
+                onClick={() => navigate('/homePage')}
+                className="mr-6 p-3 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+              <div>
+                <h1 className="text-4xl font-bold text-gray-900 flex items-center">
+                  <BookOpen className="w-10 h-10 mr-4 text-blue-600" />
+                  Treatment Guidelines
+                </h1>
+                <p className="text-xl text-gray-600 mt-3">Evidence-based medical treatment recommendations</p>
+              </div>
             </div>
-            <button
-              onClick={() => window.history.back()}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Back to Dashboard
-            </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-8 py-12">
         {/* Search and Filter */}
-        <div className="mb-8 bg-white p-6 rounded-lg shadow-sm">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+        <div className="mb-12 bg-white p-8 rounded-xl shadow-lg border-2 border-gray-200">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 relative">
+              <Search className="absolute left-4 top-4 w-6 h-6 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search guidelines..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-12 pr-4 py-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
               />
             </div>
             <div className="flex items-center">
-              <Filter className="w-5 h-5 text-gray-400 mr-2" />
+              <Filter className="w-6 h-6 text-gray-400 mr-3" />
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
               >
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
@@ -280,21 +289,21 @@ const TreatmentGuidelines = () => {
         </div>
 
         {/* Categories */}
-        <div className="mb-8">
-          <div className="flex flex-wrap gap-4">
+        <div className="mb-12">
+          <div className="flex flex-wrap gap-6">
             {categories.map((category) => {
               const Icon = category.icon;
               return (
                 <button
                   key={category.id}
                   onClick={() => setSelectedCategory(category.id)}
-                  className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
+                  className={`flex items-center px-6 py-4 rounded-xl transition-colors font-medium text-lg ${
                     selectedCategory === category.id
                       ? 'bg-blue-600 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                      : 'bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-200'
                   }`}
                 >
-                  <Icon className="w-4 h-4 mr-2" />
+                  <Icon className="w-6 h-6 mr-3" />
                   {category.name}
                 </button>
               );
@@ -303,51 +312,51 @@ const TreatmentGuidelines = () => {
         </div>
 
         {/* Guidelines Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
           {filteredGuidelines.map((guideline) => (
             <div
               key={guideline.id}
-              className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer"
+              className="bg-white p-8 rounded-xl shadow-lg border-2 border-gray-200 hover:border-blue-300 hover:shadow-xl transition-all cursor-pointer"
               onClick={() => setSelectedGuideline(guideline)}
             >
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex items-start justify-between mb-6">
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900 mb-2">{guideline.title}</h3>
-                  <p className="text-gray-600 text-sm mb-3 line-clamp-3">{guideline.description}</p>
+                  <h3 className="font-bold text-gray-900 mb-3 text-xl">{guideline.title}</h3>
+                  <p className="text-gray-600 mb-4 line-clamp-3">{guideline.description}</p>
                 </div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     toggleFavorite(guideline.id);
                   }}
-                  className={`ml-2 p-1 rounded transition-colors ${
+                  className={`ml-3 p-2 rounded-lg transition-colors ${
                     favorites.includes(guideline.id)
                       ? 'text-yellow-500 hover:text-yellow-600'
                       : 'text-gray-400 hover:text-yellow-500'
                   }`}
                 >
-                  <Star className="w-4 h-4" />
+                  <Star className="w-5 h-5" />
                 </button>
               </div>
 
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                <div className="flex items-center space-x-3">
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                     guideline.priority === 'high' ? 'bg-red-100 text-red-800' :
                     guideline.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
                     'bg-green-100 text-green-800'
                   }`}>
                     {guideline.priority}
                   </span>
-                  <span className="text-xs text-gray-500 capitalize">{guideline.category}</span>
+                  <span className="text-sm text-gray-500 capitalize">{guideline.category}</span>
                 </div>
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center space-x-2">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDownload(guideline);
                     }}
-                    className="p-1 text-gray-400 hover:text-gray-600 rounded transition-colors"
+                    className="p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors"
                   >
                     <Download className="w-4 h-4" />
                   </button>
@@ -356,15 +365,15 @@ const TreatmentGuidelines = () => {
                       e.stopPropagation();
                       handleShare(guideline);
                     }}
-                    className="p-1 text-gray-400 hover:text-gray-600 rounded transition-colors"
+                    className="p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors"
                   >
                     <Share2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
-              <div className="mt-3 pt-3 border-t border-gray-100">
-                <p className="text-xs text-gray-500">
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <p className="text-sm text-gray-500">
                   Last updated: {guideline.lastUpdated}
                 </p>
               </div>
@@ -373,10 +382,10 @@ const TreatmentGuidelines = () => {
         </div>
 
         {filteredGuidelines.length === 0 && (
-          <div className="text-center py-12">
-            <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No guidelines found</h3>
-            <p className="text-gray-500">Try adjusting your search or filter criteria.</p>
+          <div className="text-center py-20">
+            <FileText className="w-20 h-20 text-gray-300 mx-auto mb-6" />
+            <h3 className="text-2xl font-medium text-gray-900 mb-3">No guidelines found</h3>
+            <p className="text-xl text-gray-500">Try adjusting your search or filter criteria.</p>
           </div>
         )}
       </div>
@@ -384,7 +393,7 @@ const TreatmentGuidelines = () => {
   );
 };
 
-// Mock data עד שהשרת יהיה מוכן
+// Mock data until server is ready
 const mockGuidelines = [
   {
     id: 1,

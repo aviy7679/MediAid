@@ -1,24 +1,24 @@
 import { useState, useEffect } from "react";
-import { Camera, Mic, Upload, FileText, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
+import { Camera, Mic, Upload, FileText, ArrowLeft, CheckCircle, AlertCircle, X, Play, Pause } from 'lucide-react';
 import { API_ENDPOINTS } from '../apiConfig';
 
 export default function UploadData() {
-    // מידע בסיסי
+    // Basic information
     const [data, setData] = useState({ text: "", image: null, audio: null });
     const [isRecording, setIsRecording] = useState(false);
     
-    // מצב המצלמה
+    // Camera state
     const [cameraActive, setCameraActive] = useState(false);
     const [videoElement, setVideoElement] = useState(null);
     const [cameraStream, setCameraStream] = useState(null);
     const [capturedImage, setCapturedImage] = useState(null);
     
-    // מצב הקלטת האודיו
+    // Audio recording state
     const [audioRecorder, setAudioRecorder] = useState(null);
     const [audioChunks, setAudioChunks] = useState([]);
     const [audioURL, setAudioURL] = useState(null);
 
-    // ניהול שגיאות וסטטוס
+    // Error and status management
     const [cameraError, setCameraError] = useState("");
     const [audioError, setAudioError] = useState("");
     const [uploadStatus, setUploadStatus] = useState("");
@@ -33,46 +33,39 @@ export default function UploadData() {
         window.location.href = path;
     };
 
-    // מופעל כשהקומפוננטה עולה - לקבל הפניה לאלמנט הוידאו
+    // Initialize when component mounts
     useEffect(() => {
-        // מאתחל הפניה לאלמנט הוידאו אחרי שהקומפוננטה מוצגת
         setVideoElement(document.getElementById('camera-view'));
         
-        // ניקוי משאבים כשהקומפוננטה יורדת
+        // Cleanup resources when component unmounts
         return () => {
-            // עוצר את המצלמה
             if (cameraStream) {
-                //מעבר על כל הערוצים של הזרם: וידיאו, אודיו ועצירת כולם.
                 cameraStream.getTracks().forEach(track => track.stop());
             }
             
-            // עוצר את מקליט האודיו
             if (audioRecorder && audioRecorder.state !== 'inactive') {
                 audioRecorder.stop();
             }
             
-            // ניקוי URL של האודיו
             if (audioURL) {
                 URL.revokeObjectURL(audioURL);
             }
             
-            // ניקוי URL של התמונה
             if (capturedImage) {
                 URL.revokeObjectURL(capturedImage);
             }
         };
     }, []);
 
-    //עדכון הערך של הטקסט באוביקט הdata בעת שינוי
     const handleTextChange = (event) => {
         setData(prevData => ({ ...prevData, text: event.target.value }));
     };
 
-    // טיפול בהעלאת תמונה
+    // Handle image upload
     const handleImageUpload = (event) => {
         const file = event.target.files[0];
         if (file) {
-            // בדיקת גודל קובץ (מקסימום 10MB)
+            // Check file size (maximum 10MB)
             if (file.size > 10 * 1024 * 1024) {
                 alert('File size too large. Please select a file smaller than 10MB.');
                 return;
@@ -80,21 +73,18 @@ export default function UploadData() {
 
             setData(prevData => ({ ...prevData, image: file }));
             
-            //ניקוי הכתובת שנשמרה לתמונה כדי למנוע בזבוז של הזכרון
             if (capturedImage) {
                 URL.revokeObjectURL(capturedImage);
             }
             setCapturedImage(null);
-            //כיבוי
             stopCamera();
         }
     };
 
-    // הפעלת המצלמה
+    // Start camera
     const startCamera = async () => {
-        setCameraError("");//איפוס שגיאות קודמות
+        setCameraError("");
         
-        // אם יש תמונה שנלכדה קודם, מסתירים אותה
         if (capturedImage) {
             setCapturedImage(null);
         }
@@ -104,17 +94,15 @@ export default function UploadData() {
             return;
         }
         
-        try {//בקשת גישה מהמשתמש לשימוש במצלמה
+        try {
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 video: { width: 1280, height: 720 },
                 audio: false
             });
             
-            videoElement.srcObject = stream;//מחברים את הזרם לוידיאו
-            setCameraStream(stream);//שומרים את הזרם
-            setCameraActive(true);//המצלמה פועלת
-            
-            // הבטחה שהאלמנט יהיה גלוי
+            videoElement.srcObject = stream;
+            setCameraStream(stream);
+            setCameraActive(true);
             videoElement.style.display = 'block';
             
         } catch (error) {
@@ -123,7 +111,7 @@ export default function UploadData() {
         }
     };
 
-    // כיבוי המצלמה
+    // Stop camera
     const stopCamera = () => {
         if (cameraStream) {
             cameraStream.getTracks().forEach(track => track.stop());
@@ -138,7 +126,7 @@ export default function UploadData() {
         }
     };
 
-    // צילום תמונה מהמצלמה
+    // Capture image from camera
     const captureImage = () => {
         if (!videoElement || !cameraActive) {
             setCameraError("Camera is not active");
@@ -149,7 +137,7 @@ export default function UploadData() {
             const canvas = document.createElement('canvas');
             canvas.width = videoElement.videoWidth;
             canvas.height = videoElement.videoHeight;
-            //מדפיס את התמונה על הקנבס
+            
             const ctx = canvas.getContext('2d');
             ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
             
@@ -158,11 +146,9 @@ export default function UploadData() {
                     const file = new File([blob], "camera-capture.jpg", { type: "image/jpeg" });
                     setData(prevData => ({ ...prevData, image: file }));
                     
-                    // יצירת URL לתמונה
                     const imageURL = URL.createObjectURL(blob);
                     setCapturedImage(imageURL);
                     
-                    // כיבוי המצלמה לאחר לכידת התמונה
                     stopCamera();
                 } else {
                     setCameraError("Failed to capture image");
@@ -173,12 +159,11 @@ export default function UploadData() {
         }
     };
 
-    // התחלת הקלטת אודיו
+    // Start audio recording
     const startRecording = async () => {
         setAudioError("");
         setAudioChunks([]);
         
-        // אם יש URL קודם של אודיו, נשחרר את המשאב
         if (audioURL) {
             URL.revokeObjectURL(audioURL);
             setAudioURL(null);
@@ -201,22 +186,17 @@ export default function UploadData() {
             };
             
             recorder.onstop = () => {
-                // איסוף כל חלקי האודיו
                 const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
                 const audioFile = new File([audioBlob], "audio-recording.mp3", { type: "audio/mp3" });
                 
-                // שמירת הקובץ בנתונים
                 setData(prevData => ({ ...prevData, audio: audioFile }));
                 
-                // יצירת URL חדש לנגן האודיו
                 const url = URL.createObjectURL(audioBlob);
                 setAudioURL(url);
                 
-                // עצירת הזרם
                 stream.getTracks().forEach(track => track.stop());
             };
             
-            // התחלת ההקלטה
             setAudioChunks([]);
             recorder.start();
             setAudioRecorder(recorder);
@@ -226,7 +206,7 @@ export default function UploadData() {
         }
     };
 
-    // עצירת הקלטת אודיו
+    // Stop audio recording
     const stopRecording = () => {
         if (audioRecorder && audioRecorder.state !== 'inactive') {
             audioRecorder.stop();
@@ -234,11 +214,7 @@ export default function UploadData() {
         }
     };
 
-    // // מידע נוסף למצב
-    // const [treatmentGuidelines, setTreatmentGuidelines] = useState([]);
-    // const [showGuidelines, setShowGuidelines] = useState(false);
-
-    // שליחת הנתונים לשרת
+    // Submit data to server
     const handleSubmit = async () => {
         setUploadStatus("");
         setOcrResult("");
@@ -250,26 +226,25 @@ export default function UploadData() {
             setUploadStatus("Please provide at least one form of medical data (text, image, or audio).");
             return;
         }
-    
+
         const formData = new FormData();
         if (data.text) formData.append("text", data.text);
         if (data.image) formData.append("image", data.image);
         if (data.audio) formData.append("audio", data.audio);
-    
+
         try {
             setIsUploading(true);
             setUploadStatus("Uploading and processing your medical data...");
-    
+
             const response = await fetch(API_ENDPOINTS.UPLOAD_DATA, {
                 method: "POST",
                 body: formData
             });
-    
+
             if (response.ok) {
                 const responseText = await response.text();
                 
                 try {
-                    // ניסיון לפרסר JSON אם השרת מחזיר JSON
                     const responseData = JSON.parse(responseText);
                     
                     if (responseData.guidelines && responseData.guidelines.length > 0) {
@@ -284,16 +259,13 @@ export default function UploadData() {
                         setOcrResult(responseData.ocrResult);
                     }
                 } catch (jsonError) {
-                    // אם השרת לא מחזיר JSON, נטפל בתגובה הישנה
                     setUploadStatus("Data uploaded and processed successfully!");
                     
-                    // חילוץ תוצאת OCR אם קיימת
                     if (responseText.includes("OCR Result:")) {
                         const ocrText = responseText.split("OCR Result: ")[1];
                         setOcrResult(ocrText);
                     }
                     
-                    // נתונים דמה עד שהשרת יעודכן
                     setTimeout(() => {
                         setTreatmentGuidelines(generateMockGuidelines(data.text, ocrResult));
                         setShowGuidelines(true);
@@ -314,12 +286,12 @@ export default function UploadData() {
         }
     };
 
-    // פונקציה לייצור הנחיות דמה בהתבסס על הטקסט שהמשתמש הקליד
+    // Generate mock guidelines based on input text
     const generateMockGuidelines = (text, ocr) => {
         const allSymptoms = (text + " " + ocr).toLowerCase();
         const guidelines = [];
 
-        if (allSymptoms.includes('headache') || allSymptoms.includes('כאב ראש')) {
+        if (allSymptoms.includes('headache') || allSymptoms.includes('head pain')) {
             guidelines.push({
                 id: 1,
                 title: "Headache Management",
@@ -337,7 +309,7 @@ export default function UploadData() {
             });
         }
 
-        if (allSymptoms.includes('fever') || allSymptoms.includes('חום')) {
+        if (allSymptoms.includes('fever') || allSymptoms.includes('temperature')) {
             guidelines.push({
                 id: 2,
                 title: "Fever Management",
@@ -356,7 +328,7 @@ export default function UploadData() {
             });
         }
 
-        if (allSymptoms.includes('cough') || allSymptoms.includes('שיעול')) {
+        if (allSymptoms.includes('cough')) {
             guidelines.push({
                 id: 3,
                 title: "Cough Treatment",
@@ -375,7 +347,6 @@ export default function UploadData() {
             });
         }
 
-        // הנחיה כללית אם לא זוהו סימפטומים ספציפיים
         if (guidelines.length === 0) {
             guidelines.push({
                 id: 4,
@@ -422,24 +393,24 @@ export default function UploadData() {
         <div className="min-h-screen bg-gray-50">
             {/* Header */}
             <div className="bg-white shadow-sm border-b border-gray-200">
-                <div className="max-w-4xl mx-auto px-4 py-4">
+                <div className="max-w-7xl mx-auto px-8 py-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center">
                             <button
                                 onClick={() => navigate('/homePage')}
-                                className="mr-4 p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100"
+                                className="mr-6 p-3 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
                             >
-                                <ArrowLeft className="w-5 h-5" />
+                                <ArrowLeft className="w-6 h-6" />
                             </button>
                             <div>
-                                <h1 className="text-2xl font-bold text-blue-600">Medical Data Upload</h1>
-                                <p className="text-gray-600">Upload medical documents, images, or recordings for analysis</p>
+                                <h1 className="text-3xl font-bold text-blue-600">Medical Data Upload</h1>
+                                <p className="text-xl text-gray-600 mt-2">Upload medical documents, images, or recordings for analysis</p>
                             </div>
                         </div>
                         {(data.text || data.image || data.audio) && (
                             <button
                                 onClick={clearAllData}
-                                className="px-4 py-2 text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors"
+                                className="px-6 py-3 text-red-600 border-2 border-red-300 rounded-xl hover:bg-red-50 transition-colors font-medium"
                             >
                                 Clear All
                             </button>
@@ -448,14 +419,14 @@ export default function UploadData() {
                 </div>
             </div>
 
-            <div className="max-w-4xl mx-auto px-4 py-8">
+            <div className="max-w-7xl mx-auto px-8 py-12">
                 {/* Success Banner */}
                 {uploadSuccess && (
-                    <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center">
-                        <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+                    <div className="mb-12 p-6 bg-green-50 border-2 border-green-200 rounded-xl flex items-center">
+                        <CheckCircle className="w-8 h-8 text-green-600 mr-4" />
                         <div className="flex-1">
-                            <p className="text-green-800 font-medium">Analysis Complete!</p>
-                            <p className="text-green-700 text-sm">
+                            <p className="text-green-800 font-semibold text-lg">Analysis Complete!</p>
+                            <p className="text-green-700">
                                 {showGuidelines 
                                     ? "Your personalized treatment recommendations are displayed below."
                                     : "Your medical data has been processed successfully."
@@ -470,7 +441,7 @@ export default function UploadData() {
                                         guidelinesSection.scrollIntoView({ behavior: 'smooth' });
                                     }
                                 }}
-                                className="ml-4 px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors"
+                                className="ml-6 px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
                             >
                                 View Recommendations
                             </button>
@@ -478,186 +449,195 @@ export default function UploadData() {
                     </div>
                 )}
 
-                {/* Text Input Section */}
-                <div className="mb-8 bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-                    <div className="flex items-center mb-4">
-                        <FileText className="w-5 h-5 text-blue-600 mr-2" />
-                        <h3 className="text-lg font-semibold text-gray-900">Text Description</h3>
-                    </div>
-                    <textarea 
-                        placeholder="Describe your symptoms, medical concerns, or provide any relevant medical information..."
-                        className="w-full h-32 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                        onChange={handleTextChange} 
-                        value={data.text}
-                    />
-                    <p className="text-sm text-gray-500 mt-2">Provide detailed information about your symptoms or medical situation.</p>
-                </div>
-                
-                {/* Image Upload & Camera Section */}
-                <div className="mb-8 bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-                    <div className="flex items-center mb-4">
-                        <Camera className="w-5 h-5 text-blue-600 mr-2" />
-                        <h3 className="text-lg font-semibold text-gray-900">Medical Images</h3>
-                    </div>
-                    
-                    {/* File Upload */}
-                    <div className="mb-6">
-                        <label htmlFor="myfile" className="block text-sm font-medium text-gray-700 mb-2">
-                            Upload Medical Document or Image
-                        </label>
-                        <input 
-                            type="file" 
-                            id="myfile" 
-                            name="myfile" 
-                            accept="image/*,application/pdf" 
-                            onChange={handleImageUpload}
-                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
+                    {/* Text Input Section */}
+                    <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-200">
+                        <div className="flex items-center mb-6">
+                            <FileText className="w-8 h-8 text-blue-600 mr-4" />
+                            <h3 className="text-2xl font-semibold text-gray-900">Text Description</h3>
+                        </div>
+                        <textarea 
+                            placeholder="Describe your symptoms, medical concerns, or provide any relevant medical information..."
+                            className="w-full h-48 p-6 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-lg"
+                            onChange={handleTextChange} 
+                            value={data.text}
                         />
-                        <p className="text-sm text-gray-500 mt-1">Supported formats: JPG, PNG, PDF (Max 10MB)</p>
-                    </div>
-                    
-                    {/* Camera Controls */}
-                    <div className="mb-4">
-                        <p className="text-sm font-medium text-gray-700 mb-2">Or take a photo with your camera:</p>
-                        {!cameraActive ? (
-                            <button 
-                                onClick={startCamera} 
-                                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                            >
-                                <Camera className="w-4 h-4 mr-2" />
-                                Open Camera
-                            </button>
-                        ) : (
-                            <div className="flex gap-3">
-                                <button 
-                                    onClick={captureImage} 
-                                    className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                                >
-                                    <Camera className="w-4 h-4 mr-2" />
-                                    Take Picture
-                                </button>
-                                <button 
-                                    onClick={stopCamera} 
-                                    className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
+                        <p className="text-gray-500 mt-4">Provide detailed information about your symptoms or medical situation.</p>
+                        {data.text && (
+                            <p className="text-sm text-gray-400 mt-2">Characters: {data.text.length}</p>
                         )}
                     </div>
                     
-                    {/* Camera Error Message */}
-                    {cameraError && (
-                        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                            <div className="flex items-center">
-                                <AlertCircle className="w-4 h-4 text-red-600 mr-2" />
-                                <p className="text-red-700 text-sm">{cameraError}</p>
-                            </div>
+                    {/* Image Upload & Camera Section */}
+                    <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-200">
+                        <div className="flex items-center mb-6">
+                            <Camera className="w-8 h-8 text-blue-600 mr-4" />
+                            <h3 className="text-2xl font-semibold text-gray-900">Medical Images</h3>
                         </div>
-                    )}
-                    
-                    {/* Camera View */}
-                    <div className="mb-4">
-                        <video 
-                            id="camera-view"
-                            autoPlay 
-                            playsInline
-                            className={`w-full max-w-md border-2 border-gray-300 rounded-lg ${cameraActive ? 'block' : 'hidden'}`}
-                        />
-                    </div>
-                    
-                    {/* Display Captured Image */}
-                    {capturedImage && (
-                        <div className="mb-4">
-                            <p className="text-sm font-medium text-gray-700 mb-2">Captured Image:</p>
-                            <img 
-                                src={capturedImage} 
-                                alt="Captured" 
-                                className="w-full max-w-md border-2 border-green-300 rounded-lg" 
+                        
+                        {/* File Upload */}
+                        <div className="mb-8">
+                            <label htmlFor="myfile" className="block text-lg font-medium text-gray-700 mb-4">
+                                Upload Medical Document or Image
+                            </label>
+                            <input 
+                                type="file" 
+                                id="myfile" 
+                                name="myfile" 
+                                accept="image/*,application/pdf" 
+                                onChange={handleImageUpload}
+                                className="block w-full text-lg text-gray-500 file:mr-6 file:py-3 file:px-6 file:rounded-xl file:border-0 file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-colors"
                             />
+                            <p className="text-gray-500 mt-2">Supported formats: JPG, PNG, PDF (Max 10MB)</p>
                         </div>
-                    )}
-                    
-                    {/* Show selected file name */}
-                    {data.image && !capturedImage && (
-                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                            <p className="text-blue-800 text-sm font-medium">Selected: {data.image.name}</p>
-                        </div>
-                    )}
-                </div>
-                
-                {/* Audio Recording Section */}
-                <div className="mb-8 bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-                    <div className="flex items-center mb-4">
-                        <Mic className="w-5 h-5 text-blue-600 mr-2" />
-                        <h3 className="text-lg font-semibold text-gray-900">Voice Recording</h3>
-                    </div>
-                    
-                    {/* Recording Controls */}
-                    <div className="mb-4">
-                        {!isRecording ? (
-                            <button 
-                                onClick={startRecording} 
-                                className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                            >
-                                <Mic className="w-4 h-4 mr-2" />
-                                Start Recording
-                            </button>
-                        ) : (
-                            <div className="flex items-center gap-3">
+                        
+                        {/* Camera Controls */}
+                        <div className="mb-6">
+                            <p className="text-lg font-medium text-gray-700 mb-4">Or take a photo with your camera:</p>
+                            {!cameraActive ? (
                                 <button 
-                                    onClick={stopRecording} 
-                                    className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                                    onClick={startCamera} 
+                                    className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium text-lg"
                                 >
-                                    <div className="w-2 h-2 bg-white rounded-full mr-2"></div>
-                                    Stop Recording
+                                    <Camera className="w-6 h-6 mr-3" />
+                                    Open Camera
                                 </button>
-                                <div className="flex items-center text-red-600">
-                                    <div className="w-2 h-2 bg-red-600 rounded-full animate-pulse mr-2"></div>
-                                    <span className="text-sm font-medium">Recording...</span>
+                            ) : (
+                                <div className="flex gap-4">
+                                    <button 
+                                        onClick={captureImage} 
+                                        className="flex items-center px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium text-lg"
+                                    >
+                                        <Camera className="w-6 h-6 mr-3" />
+                                        Take Picture
+                                    </button>
+                                    <button 
+                                        onClick={stopCamera} 
+                                        className="px-6 py-3 text-gray-700 border-2 border-gray-300 rounded-xl hover:bg-gray-50 transition-colors font-medium text-lg"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* Camera Error Message */}
+                        {cameraError && (
+                            <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                                <div className="flex items-center">
+                                    <AlertCircle className="w-5 h-5 text-red-600 mr-3" />
+                                    <p className="text-red-700">{cameraError}</p>
                                 </div>
                             </div>
                         )}
-                    </div>
-                    
-                    {/* Audio Error Message */}
-                    {audioError && (
-                        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                            <div className="flex items-center">
-                                <AlertCircle className="w-4 h-4 text-red-600 mr-2" />
-                                <p className="text-red-700 text-sm">{audioError}</p>
-                            </div>
-                        </div>
-                    )}
-                    
-                    {/* Audio Player */}
-                    {audioURL && (
-                        <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                            <p className="text-sm font-medium text-gray-700 mb-2">Recorded Audio:</p>
-                            <audio 
-                                controls 
-                                src={audioURL}
-                                className="w-full"
+                        
+                        {/* Camera View */}
+                        <div className="mb-6">
+                            <video 
+                                id="camera-view"
+                                autoPlay 
+                                playsInline
+                                className={`w-full border-4 border-gray-300 rounded-xl ${cameraActive ? 'block' : 'hidden'}`}
                             />
                         </div>
-                    )}
+                        
+                        {/* Display Captured Image */}
+                        {capturedImage && (
+                            <div className="mb-6">
+                                <p className="text-lg font-medium text-gray-700 mb-4">Captured Image:</p>
+                                <img 
+                                    src={capturedImage} 
+                                    alt="Captured" 
+                                    className="w-full border-4 border-green-300 rounded-xl" 
+                                />
+                            </div>
+                        )}
+                        
+                        {/* Show selected file name */}
+                        {data.image && !capturedImage && (
+                            <div className="p-4 bg-blue-50 border-2 border-blue-200 rounded-xl">
+                                <p className="text-blue-800 font-medium">📎 Selected: {data.image.name}</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Audio Recording Section */}
+                <div className="mt-12 bg-white rounded-xl shadow-lg p-8 border border-gray-200">
+                    <div className="flex items-center mb-6">
+                        <Mic className="w-8 h-8 text-blue-600 mr-4" />
+                        <h3 className="text-2xl font-semibold text-gray-900">Voice Recording</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div>
+                            {/* Recording Controls */}
+                            <div className="mb-6">
+                                {!isRecording ? (
+                                    <button 
+                                        onClick={startRecording} 
+                                        className="flex items-center px-6 py-4 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium text-lg"
+                                    >
+                                        <Mic className="w-6 h-6 mr-3" />
+                                        Start Recording
+                                    </button>
+                                ) : (
+                                    <div className="flex items-center gap-6">
+                                        <button 
+                                            onClick={stopRecording} 
+                                            className="flex items-center px-6 py-4 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition-colors font-medium text-lg"
+                                        >
+                                            <div className="w-4 h-4 bg-white rounded-sm mr-3"></div>
+                                            Stop Recording
+                                        </button>
+                                        <div className="flex items-center text-red-600">
+                                            <div className="w-4 h-4 bg-red-600 rounded-full animate-pulse mr-3"></div>
+                                            <span className="font-medium text-lg">Recording...</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {/* Audio Error Message */}
+                            {audioError && (
+                                <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                                    <div className="flex items-center">
+                                        <AlertCircle className="w-5 h-5 text-red-600 mr-3" />
+                                        <p className="text-red-700">{audioError}</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Audio Player */}
+                        {audioURL && (
+                            <div className="p-6 bg-gray-50 border-2 border-gray-200 rounded-xl">
+                                <p className="text-lg font-medium text-gray-700 mb-4">Recorded Audio:</p>
+                                <audio 
+                                    controls 
+                                    src={audioURL}
+                                    className="w-full"
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
                 
                 {/* Submit Button and Status */}
-                <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+                <div className="mt-12 bg-white rounded-xl shadow-lg p-8 border border-gray-200">
                     <button 
                         onClick={handleSubmit} 
                         disabled={isUploading || (!data.text && !data.image && !data.audio)}
-                        className="w-full flex items-center justify-center px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                        className="w-full flex items-center justify-center px-8 py-6 bg-blue-600 text-white font-semibold text-xl rounded-xl hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                     >
                         {isUploading ? (
                             <>
-                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mr-4"></div>
                                 Processing...
                             </>
                         ) : (
                             <>
-                                <Upload className="w-5 h-5 mr-2" />
+                                <Upload className="w-8 h-8 mr-4" />
                                 Upload & Analyze Medical Data
                             </>
                         )}
@@ -665,14 +645,14 @@ export default function UploadData() {
                     
                     {/* Upload Status */}
                     {uploadStatus && (
-                        <div className={`mt-4 p-4 rounded-lg ${
+                        <div className={`mt-6 p-6 rounded-xl ${
                             uploadStatus.includes("success") || uploadSuccess
-                                ? "bg-green-50 border border-green-200" 
+                                ? "bg-green-50 border-2 border-green-200" 
                                 : uploadStatus.includes("failed") || uploadStatus.includes("Error")
-                                ? "bg-red-50 border border-red-200"
-                                : "bg-blue-50 border border-blue-200"
+                                ? "bg-red-50 border-2 border-red-200"
+                                : "bg-blue-50 border-2 border-blue-200"
                         }`}>
-                            <p className={`text-sm ${
+                            <p className={`text-lg ${
                                 uploadStatus.includes("success") || uploadSuccess
                                     ? "text-green-700" 
                                     : uploadStatus.includes("failed") || uploadStatus.includes("Error")
@@ -686,50 +666,50 @@ export default function UploadData() {
                     
                     {/* OCR Result Section */}
                     {ocrResult && (
-                        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                            <h4 className="font-medium text-blue-900 mb-2">Extracted Text from Image:</h4>
-                            <p className="text-blue-800 text-sm whitespace-pre-wrap">{ocrResult}</p>
+                        <div className="mt-6 p-6 bg-blue-50 border-2 border-blue-200 rounded-xl">
+                            <h4 className="font-semibold text-blue-900 mb-3 text-lg">Extracted Text from Image:</h4>
+                            <p className="text-blue-800 whitespace-pre-wrap">{ocrResult}</p>
                         </div>
                     )}
 
                     {/* Treatment Guidelines Display */}
                     {showGuidelines && treatmentGuidelines.length > 0 && (
-                        <div className="mt-6 space-y-4" data-guidelines>
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-semibold text-gray-900">📋 Treatment Recommendations</h3>
+                        <div className="mt-8 space-y-6" data-guidelines>
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="text-2xl font-semibold text-gray-900">📋 Treatment Recommendations</h3>
                                 <button
                                     onClick={() => setShowGuidelines(false)}
-                                    className="text-sm text-gray-500 hover:text-gray-700"
+                                    className="text-gray-500 hover:text-gray-700 p-2"
                                 >
-                                    Hide
+                                    <X className="w-6 h-6" />
                                 </button>
                             </div>
                             
                             {treatmentGuidelines.map((guideline) => (
-                                <div key={guideline.id} className="border border-gray-200 rounded-lg p-5 bg-white">
-                                    <div className="flex items-start justify-between mb-3">
+                                <div key={guideline.id} className="border-2 border-gray-200 rounded-xl p-8 bg-white">
+                                    <div className="flex items-start justify-between mb-6">
                                         <div>
-                                            <h4 className="font-semibold text-gray-900 text-lg">{guideline.title}</h4>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                            <h4 className="font-bold text-gray-900 text-2xl">{guideline.title}</h4>
+                                            <div className="flex items-center gap-3 mt-2">
+                                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                                                     guideline.priority === 'high' ? 'bg-red-100 text-red-800' :
                                                     guideline.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
                                                     'bg-green-100 text-green-800'
                                                 }`}>
                                                     {guideline.priority} priority
                                                 </span>
-                                                <span className="text-sm text-gray-500">{guideline.category}</span>
+                                                <span className="text-gray-500 text-lg">{guideline.category}</span>
                                             </div>
                                         </div>
                                     </div>
                                     
                                     {/* Recommendations */}
-                                    <div className="mb-4">
-                                        <h5 className="font-medium text-gray-800 mb-2">✅ Recommended Actions:</h5>
-                                        <ul className="space-y-1">
+                                    <div className="mb-6">
+                                        <h5 className="font-semibold text-gray-800 mb-4 text-lg">✅ Recommended Actions:</h5>
+                                        <ul className="space-y-2">
                                             {guideline.recommendations.map((rec, index) => (
-                                                <li key={index} className="text-sm text-gray-700 flex items-start">
-                                                    <span className="text-green-600 mr-2 mt-1">•</span>
+                                                <li key={index} className="text-gray-700 flex items-start">
+                                                    <span className="text-green-600 mr-3 mt-1">•</span>
                                                     {rec}
                                                 </li>
                                             ))}
@@ -738,12 +718,12 @@ export default function UploadData() {
                                     
                                     {/* Warnings */}
                                     {guideline.warnings && guideline.warnings.length > 0 && (
-                                        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded">
-                                            <h5 className="font-medium text-red-800 mb-2">⚠️ Important Warnings:</h5>
-                                            <ul className="space-y-1">
+                                        <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
+                                            <h5 className="font-semibold text-red-800 mb-3 text-lg">⚠️ Important Warnings:</h5>
+                                            <ul className="space-y-2">
                                                 {guideline.warnings.map((warning, index) => (
-                                                    <li key={index} className="text-sm text-red-700 flex items-start">
-                                                        <span className="text-red-600 mr-2 mt-1">•</span>
+                                                    <li key={index} className="text-red-700 flex items-start">
+                                                        <span className="text-red-600 mr-3 mt-1">•</span>
                                                         {warning}
                                                     </li>
                                                 ))}
@@ -753,16 +733,16 @@ export default function UploadData() {
                                     
                                     {/* Follow-up */}
                                     {guideline.followUp && (
-                                        <div className="p-3 bg-blue-50 border border-blue-200 rounded">
-                                            <h5 className="font-medium text-blue-800 mb-1">📅 Follow-up:</h5>
-                                            <p className="text-sm text-blue-700">{guideline.followUp}</p>
+                                        <div className="p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
+                                            <h5 className="font-semibold text-blue-800 mb-2 text-lg">📅 Follow-up:</h5>
+                                            <p className="text-blue-700">{guideline.followUp}</p>
                                         </div>
                                     )}
                                 </div>
                             ))}
                             
-                            <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                                <p className="text-sm text-gray-600 text-center">
+                            <div className="mt-8 p-6 bg-gray-50 border-2 border-gray-200 rounded-xl">
+                                <p className="text-gray-600 text-center">
                                     <strong>Disclaimer:</strong> These recommendations are for informational purposes only and should not replace professional medical advice. 
                                     Always consult with a qualified healthcare provider for proper diagnosis and treatment.
                                 </p>
@@ -772,16 +752,16 @@ export default function UploadData() {
 
                     {/* Quick Actions after upload */}
                     {uploadSuccess && !showGuidelines && (
-                        <div className="mt-4 flex gap-3">
+                        <div className="mt-6 flex gap-4">
                             <button
                                 onClick={() => navigate('/treatment-guidelines')}
-                                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
+                                className="flex-1 px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-medium"
                             >
                                 View General Guidelines
                             </button>
                             <button
                                 onClick={() => navigate('/profile')}
-                                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                                className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium"
                             >
                                 Update Profile
                             </button>

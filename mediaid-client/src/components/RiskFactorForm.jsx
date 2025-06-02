@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { Heart, Activity, TrendingUp, AlertCircle, CheckCircle, User } from 'lucide-react';
 import { auth } from '../authUtils'; 
 import { API_ENDPOINTS } from '../apiConfig';
 
-
 const RiskFactorForm = () => {
-  // מצב הטופס - כל שדה נשמר כאן
+  // Form state - each field is saved here
   const [formData, setFormData] = useState({
     smokingStatus: '',
     alcoholConsumption: '',
@@ -22,7 +22,7 @@ const RiskFactorForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState('');
 
-  // אפשרויות לבחירה בשדות - לפי התיאורים מה-ENUM
+  // Risk factor options based on ENUM descriptions
   const riskFactorOptions = {
     smokingStatus: [
       { value: 'NEVER', label: 'Never smoked' },
@@ -82,7 +82,7 @@ const RiskFactorForm = () => {
     ]
   };
 
-  // חישוב BMI אוטומטי כאשר גובה או משקל משתנים
+  // Automatic BMI calculation when height or weight changes
   useEffect(() => {
     const weight = parseFloat(formData.weight);
     const height = parseFloat(formData.height);
@@ -92,7 +92,7 @@ const RiskFactorForm = () => {
       const bmi = weight / (heightInMeters * heightInMeters);
       setFormData(prevState => ({
         ...prevState,
-        bmi: Math.round(bmi * 100) / 100 // עיגול לשני מקומות אחרי הנקודה
+        bmi: Math.round(bmi * 100) / 100
       }));
     } else {
       setFormData(prevState => ({
@@ -102,7 +102,7 @@ const RiskFactorForm = () => {
     }
   }, [formData.weight, formData.height]);
 
-  // פונקציה לקביעת קטגוריית BMI
+  // Function to determine BMI category
   const getBmiCategory = (bmi) => {
     if (!bmi) return '';
     if (bmi < 18.5) return 'Underweight';
@@ -113,16 +113,16 @@ const RiskFactorForm = () => {
     return 'Obese class 3';
   };
 
-  // פונקציה לקביעת צבע BMI
+  // Function to determine BMI color
   const getBmiColor = (bmi) => {
-    if (!bmi) return '#333';
-    if (bmi < 18.5) return '#3498db'; // כחול - תת משקל
-    if (bmi < 25) return '#27ae60'; // ירוק - נורמלי
-    if (bmi < 30) return '#f39c12'; // כתום - עודף משקל
-    return '#e74c3c'; // אדום - השמנה
+    if (!bmi) return 'text-gray-500';
+    if (bmi < 18.5) return 'text-blue-500';
+    if (bmi < 25) return 'text-green-500';
+    if (bmi < 30) return 'text-yellow-500';
+    return 'text-red-500';
   };
 
-  // טיפול בשינוי שדות
+  // Handle field changes
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prevState => ({
@@ -131,30 +131,30 @@ const RiskFactorForm = () => {
     }));
   };
 
-  // פונקציית שליחה לשרת
+  // Submit function to server
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmitStatus('');
 
     try {
-      // בדיקה שהמשתמש מחובר
+      // Check if user is authenticated
       if (!auth.isAuthenticated()) {
-        throw new Error('נדרשת התחברות למערכת');
+        throw new Error('Authentication required');
       }
 
-      // קבלת הטוקן
+      // Get access token
       const token = auth.getToken();
       if (!token) {
-        throw new Error('לא נמצא טוקן גישה');
+        throw new Error('Access token not found');
       }
 
-      // ולידציה בסיסית
+      // Basic validation
       if (!formData.weight || !formData.height) {
-        throw new Error('אנא מלא שדות גובה ומשקל');
+        throw new Error('Please fill in height and weight fields');
       }
 
-      // הכנת הנתונים לשליחה - כל הערכים כבר בפורמט הנכון של ENUM
+      // Prepare data for submission
       const dataToSend = {
         smokingStatus: formData.smokingStatus || null,
         alcoholConsumption: formData.alcoholConsumption || null,
@@ -169,306 +169,316 @@ const RiskFactorForm = () => {
         bmi: formData.bmi
       };
 
-      console.log('שולח נתונים:', dataToSend);
+      console.log('Sending data:', dataToSend);
 
       const response = await fetch(API_ENDPOINTS.RISK_FACTORS, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` // הוספת טוקן ההרשאה
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(dataToSend)
       });
 
       if (!response.ok) {
         if (response.status === 401) {
-          // טוקן לא תקין - הוצא את המשתמש
           auth.logout();
-          throw new Error('הסשן פג תוקף, אנא התחבר מחדש');
+          throw new Error('Session expired, please log in again');
         }
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `שגיאה בשרת: ${response.status}`);
+        throw new Error(errorData.message || `Server error: ${response.status}`);
       }
 
       const result = await response.json();
-      setSubmitStatus('הנתונים נשמרו בהצלחה!');
-      console.log('תגובת השרת:', result);
+      setSubmitStatus('Data saved successfully!');
+      console.log('Server response:', result);
 
-      // הצגת מידע נוסף מהתגובה
+      // Display additional information from response
       if (result.overallRiskScore !== undefined) {
-        setSubmitStatus(`הנתונים נשמרו בהצלחה! ציון סיכון כולל: ${result.overallRiskScore.toFixed(2)} (${result.riskLevel})`);
+        setSubmitStatus(`Data saved successfully! Overall risk score: ${result.overallRiskScore.toFixed(2)} (${result.riskLevel})`);
       }
 
     } catch (error) {
-      console.error('שגיאה בשליחת הנתונים:', error);
-      setSubmitStatus(`שגיאה: ${error.message}`);
+      console.error('Error submitting data:', error);
+      setSubmitStatus(`Error: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // בדיקה אם המשתמש מחובר
+  // Check if user is authenticated
   useEffect(() => {
     if (!auth.isAuthenticated()) {
-      setSubmitStatus('נדרשת התחברות למערכת');
+      setSubmitStatus('Authentication required');
     }
   }, []);
 
-  // קומפוננטה לשדה בחירה (dropdown)
-  const renderSelectField = (name, label, options) => (
-    <div className="form-field">
-      <label htmlFor={name}>{label}</label>
-      <select name={name} value={formData[name]} onChange={handleChange}>
-        <option value="">Select...</option>
-        {options.map(opt => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
-    </div>
-  );
-
-  // קומפוננטה לשדה מספרי (כמו משקל או גובה)
-  const renderNumberField = (name, label, placeholder, unit) => (
-    <div className="form-field">
-      <label htmlFor={name}>{label}</label>
-      <div className="input-with-unit">
-        <input
-          type="number"
-          name={name}
-          value={formData[name]}
-          onChange={handleChange}
-          placeholder={placeholder}
-          step="0.1"
-          min="0"
-        />
-        <span className="unit">{unit}</span>
-      </div>
-    </div>
-  );
-
-  // רינדור של הקומפוננטה
   return (
-    <div className="risk-factor-form">
-      <h2 className="form-title">Medical Risk Factor Details</h2>
+    <div className="min-h-screen bg-gray-50 py-12">
+      <div className="max-w-6xl mx-auto px-8">
+        <div className="bg-white rounded-2xl shadow-xl p-12">
+          {/* Header */}
+          <div className="text-center mb-12">
+            <Heart className="w-16 h-16 text-red-500 mx-auto mb-6" />
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Medical Risk Factor Assessment</h2>
+            <p className="text-xl text-gray-600">Help us understand your health profile for personalized recommendations</p>
+          </div>
 
-      <form onSubmit={handleSubmit}>
-        <div className="form-container">
-          {/* מידע בסיסי */}
-          <div className="form-section">
-            <h3 className="section-title">Basic Information</h3>
-            <div className="form-row">
-              {renderSelectField('ageGroup', 'Age Group', riskFactorOptions.ageGroup)}
-              {renderNumberField('height', 'Height', 'e.g. 170', 'cm')}
-              {renderNumberField('weight', 'Weight', 'e.g. 70', 'kg')}
-            </div>
-            
-            {/* הצגת BMI */}
-            {formData.bmi && (
-              <div className="bmi-display">
-                <h4>BMI: <span style={{color: getBmiColor(formData.bmi)}}>{formData.bmi}</span></h4>
-                <p className="bmi-category" style={{color: getBmiColor(formData.bmi)}}>
-                  Category: {getBmiCategory(formData.bmi)}
-                </p>
+          <form onSubmit={handleSubmit} className="space-y-12">
+            {/* Basic Information Section */}
+            <div className="bg-gray-50 p-8 rounded-xl">
+              <h3 className="text-2xl font-semibold text-gray-900 mb-8 flex items-center">
+                <User className="w-6 h-6 mr-3" />
+                Basic Information
+              </h3>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">Age Group</label>
+                  <select 
+                    name="ageGroup" 
+                    value={formData.ageGroup} 
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                  >
+                    <option value="">Select age group...</option>
+                    {riskFactorOptions.ageGroup.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">Height (cm)</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      name="height"
+                      value={formData.height}
+                      onChange={handleChange}
+                      placeholder="e.g. 170"
+                      step="0.1"
+                      min="0"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                    />
+                    <span className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">cm</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">Weight (kg)</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      name="weight"
+                      value={formData.weight}
+                      onChange={handleChange}
+                      placeholder="e.g. 70"
+                      step="0.1"
+                      min="0"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                    />
+                    <span className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">kg</span>
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
-
-          {/* אורח חיים */}
-          <div className="form-section">
-            <h3 className="section-title">Lifestyle</h3>
-            <div className="form-row">
-              {renderSelectField('smokingStatus', 'Smoking Status', riskFactorOptions.smokingStatus)}
-              {renderSelectField('alcoholConsumption', 'Alcohol Consumption', riskFactorOptions.alcoholConsumption)}
-              {renderSelectField('physicalActivity', 'Physical Activity', riskFactorOptions.physicalActivity)}
+              
+              {/* BMI Display */}
+              {formData.bmi && (
+                <div className="mt-8 p-6 bg-white rounded-xl border-2 border-blue-200">
+                  <div className="text-center">
+                    <h4 className="text-2xl font-semibold text-gray-900 mb-2 flex items-center justify-center">
+                      <Activity className="w-6 h-6 mr-2" />
+                      Your BMI
+                    </h4>
+                    <div className="flex items-center justify-center space-x-4">
+                      <span className={`text-4xl font-bold ${getBmiColor(formData.bmi)}`}>
+                        {formData.bmi}
+                      </span>
+                      <span className={`text-xl font-semibold ${getBmiColor(formData.bmi)}`}>
+                        {getBmiCategory(formData.bmi)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* מצב רפואי */}
-          <div className="form-section">
-            <h3 className="section-title">Medical Status</h3>
-            <div className="form-row">
-              {renderSelectField('bloodPressure', 'Blood Pressure', riskFactorOptions.bloodPressure)}
-              {renderSelectField('stressLevel', 'Stress Level', riskFactorOptions.stressLevel)}
+            {/* Lifestyle Section */}
+            <div className="bg-gray-50 p-8 rounded-xl">
+              <h3 className="text-2xl font-semibold text-gray-900 mb-8 flex items-center">
+                <Activity className="w-6 h-6 mr-3" />
+                Lifestyle Factors
+              </h3>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">Smoking Status</label>
+                  <select 
+                    name="smokingStatus" 
+                    value={formData.smokingStatus} 
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                  >
+                    <option value="">Select smoking status...</option>
+                    {riskFactorOptions.smokingStatus.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">Alcohol Consumption</label>
+                  <select 
+                    name="alcoholConsumption" 
+                    value={formData.alcoholConsumption} 
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                  >
+                    <option value="">Select alcohol consumption...</option>
+                    {riskFactorOptions.alcoholConsumption.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">Physical Activity</label>
+                  <select 
+                    name="physicalActivity" 
+                    value={formData.physicalActivity} 
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                  >
+                    <option value="">Select physical activity level...</option>
+                    {riskFactorOptions.physicalActivity.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* היסטוריה משפחתית */}
-          <div className="form-section">
-            <h3 className="section-title">Family History</h3>
-            <div className="form-row">
-              {renderSelectField('familyHeartDisease', 'Family History of Heart Disease', riskFactorOptions.familyHeartDisease)}
-              {renderSelectField('familyCancer', 'Family History of Cancer', riskFactorOptions.familyCancer)}
+            {/* Medical Status Section */}
+            <div className="bg-gray-50 p-8 rounded-xl">
+              <h3 className="text-2xl font-semibold text-gray-900 mb-8 flex items-center">
+                <Heart className="w-6 h-6 mr-3" />
+                Medical Status
+              </h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">Blood Pressure</label>
+                  <select 
+                    name="bloodPressure" 
+                    value={formData.bloodPressure} 
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                  >
+                    <option value="">Select blood pressure status...</option>
+                    {riskFactorOptions.bloodPressure.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">Stress Level</label>
+                  <select 
+                    name="stressLevel" 
+                    value={formData.stressLevel} 
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                  >
+                    <option value="">Select stress level...</option>
+                    {riskFactorOptions.stressLevel.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
-          </div>
+
+            {/* Family History Section */}
+            <div className="bg-gray-50 p-8 rounded-xl">
+              <h3 className="text-2xl font-semibold text-gray-900 mb-8 flex items-center">
+                <TrendingUp className="w-6 h-6 mr-3" />
+                Family History
+              </h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">Family History of Heart Disease</label>
+                  <select 
+                    name="familyHeartDisease" 
+                    value={formData.familyHeartDisease} 
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                  >
+                    <option value="">Select family heart disease history...</option>
+                    {riskFactorOptions.familyHeartDisease.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">Family History of Cancer</label>
+                  <select 
+                    name="familyCancer" 
+                    value={formData.familyCancer} 
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                  >
+                    <option value="">Select family cancer history...</option>
+                    {riskFactorOptions.familyCancer.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Submit Section */}
+            <div className="text-center pt-8">
+              <button 
+                type="submit" 
+                disabled={isSubmitting || !auth.isAuthenticated()}
+                className={`px-12 py-4 text-xl font-semibold rounded-xl transition-all ${
+                  isSubmitting || !auth.isAuthenticated()
+                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                    : 'bg-blue-600 text-white hover:bg-blue-700 transform hover:scale-105'
+                }`}
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center">
+                    <div className="w-6 h-6 border-2 border-gray-300 border-t-white rounded-full animate-spin mr-3"></div>
+                    Submitting...
+                  </span>
+                ) : (
+                  <span className="flex items-center">
+                    <CheckCircle className="w-6 h-6 mr-3" />
+                    Save Risk Assessment
+                  </span>
+                )}
+              </button>
+              
+              {submitStatus && (
+                <div className={`mt-6 p-4 rounded-xl ${
+                  submitStatus.includes('Error') || submitStatus.includes('required')
+                    ? 'bg-red-50 border border-red-200 text-red-700' 
+                    : 'bg-green-50 border border-green-200 text-green-700'
+                }`}>
+                  <div className="flex items-center justify-center">
+                    {submitStatus.includes('Error') || submitStatus.includes('required') ? (
+                      <AlertCircle className="w-5 h-5 mr-2" />
+                    ) : (
+                      <CheckCircle className="w-5 h-5 mr-2" />
+                    )}
+                    <span className="text-lg font-medium">{submitStatus}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </form>
         </div>
-
-        {/* כפתור שליחה ומסר סטטוס */}
-        <div className="submit-section">
-          <button type="submit" className="submit-button" disabled={isSubmitting || !auth.isAuthenticated()}>
-            {isSubmitting ? 'שולח...' : 'שמור נתונים'}
-          </button>
-          {submitStatus && (
-            <div className={`status-message ${submitStatus.includes('שגיאה') ? 'error' : 'success'}`}>
-              {submitStatus}
-            </div>
-          )}
-        </div>
-      </form>
-
-      {/* סגנון פנימי לקומפוננטה */}
-      <style jsx>{`
-        .risk-factor-form {
-          font-family: Arial, sans-serif;
-          padding: 20px;
-          background: #f9f9f9;
-          border-radius: 10px;
-          max-width: 900px;
-          margin: auto;
-        }
-
-        .form-title {
-          text-align: center;
-          font-size: 24px;
-          margin-bottom: 20px;
-          color: #2c3e50;
-        }
-
-        .form-section {
-          margin-bottom: 30px;
-          background: white;
-          padding: 20px;
-          border-radius: 8px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .section-title {
-          font-size: 18px;
-          margin-bottom: 15px;
-          color: #34495e;
-          border-bottom: 2px solid #3498db;
-          padding-bottom: 5px;
-        }
-
-        .form-row {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 20px;
-        }
-
-        .form-field {
-          flex: 1 1 250px;
-          display: flex;
-          flex-direction: column;
-        }
-
-        label {
-          font-weight: bold;
-          margin-bottom: 5px;
-          color: #2c3e50;
-        }
-
-        select, input {
-          padding: 10px;
-          border-radius: 5px;
-          border: 2px solid #ddd;
-          font-size: 14px;
-          transition: border-color 0.3s;
-        }
-
-        select:focus, input:focus {
-          outline: none;
-          border-color: #3498db;
-        }
-
-        .input-with-unit {
-          display: flex;
-          align-items: center;
-        }
-
-        .input-with-unit input {
-          flex: 1;
-        }
-
-        .unit {
-          margin-left: 8px;
-          font-size: 14px;
-          color: #666;
-          font-weight: bold;
-        }
-
-        .bmi-display {
-          background: #ecf0f1;
-          padding: 15px;
-          border-radius: 8px;
-          margin-top: 15px;
-          text-align: center;
-        }
-
-        .bmi-display h4 {
-          margin: 0 0 5px 0;
-          font-size: 18px;
-        }
-
-        .bmi-category {
-          margin: 0;
-          font-weight: bold;
-        }
-
-        .submit-section {
-          text-align: center;
-          margin-top: 30px;
-        }
-
-        .submit-button {
-          background: #3498db;
-          color: white;
-          padding: 12px 30px;
-          border: none;
-          border-radius: 6px;
-          font-size: 16px;
-          font-weight: bold;
-          cursor: pointer;
-          transition: background-color 0.3s;
-        }
-
-        .submit-button:hover:not(:disabled) {
-          background: #2980b9;
-        }
-
-        .submit-button:disabled {
-          background: #bdc3c7;
-          cursor: not-allowed;
-        }
-
-        .status-message {
-          margin-top: 15px;
-          padding: 10px;
-          border-radius: 5px;
-          font-weight: bold;
-        }
-
-        .status-message.success {
-          background: #d4edda;
-          color: #155724;
-          border: 1px solid #c3e6cb;
-        }
-
-        .status-message.error {
-          background: #f8d7da;
-          color: #721c24;
-          border: 1px solid #f5c6cb;
-        }
-
-        @media (max-width: 768px) {
-          .form-row {
-            flex-direction: column;
-          }
-          
-          .form-field {
-            flex: 1 1 auto;
-          }
-        }
-      `}</style>
+      </div>
     </div>
   );
 };

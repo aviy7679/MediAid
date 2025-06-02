@@ -474,13 +474,6 @@ if __name__ == '__main__':
     try:
         print("🏥 Starting Combined Symptom Analysis Server...")
         print("="*60)
-        print("📁 Project Structure:")
-        print("   ├── app.py              (Main Server)")
-        print("   ├── text_analyzer.py    (MedCAT Text Analysis)")
-        print("   ├── image_analyzer.py   (BiomedCLIP Image Analysis)")
-        print("   └── skin_umls_codes.py  (Symptom Labels)")
-        print("="*60)
-
         # אתחול המנתחים
         initialize_analyzers()
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, ChevronLeft, Check, User, Heart, Pill, Stethoscope } from 'lucide-react';
-import { API_ENDPOINTS } from '../apiConfig';
+import { ChevronRight, ChevronLeft, Check, User, Heart, Pill, Stethoscope, Activity } from 'lucide-react';
+import { API_ENDPOINTS, buildSearchUrl } from '../apiConfig';
 
 // Step Components
 const BasicInfoStep = ({ data, onUpdate, onNext }) => {
@@ -36,113 +36,113 @@ const BasicInfoStep = ({ data, onUpdate, onNext }) => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="text-center mb-8">
-        <User className="w-16 h-16 text-blue-500 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-gray-800">Basic Information</h2>
-        <p className="text-gray-600">Let's start with your basic details</p>
+    <div className="max-w-4xl mx-auto">
+      <div className="text-center mb-12">
+        <User className="w-20 h-20 text-blue-500 mx-auto mb-6" />
+        <h2 className="text-4xl font-bold text-gray-800 mb-4">Basic Information</h2>
+        <p className="text-xl text-gray-600">Let's start with your basic details</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
+          <label className="block text-lg font-medium text-gray-700 mb-3">Username</label>
           <input
             type="text"
             name="username"
             value={formData.username || ''}
             onChange={handleChange}
-            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.username ? 'border-red-500' : 'border-gray-300'}`}
+            className={`w-full px-6 py-4 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg ${errors.username ? 'border-red-500' : 'border-gray-300'}`}
             placeholder="Enter your username"
           />
-          {errors.username && <p className="text-red-500 text-sm mt-1">{errors.username}</p>}
+          {errors.username && <p className="text-red-500 text-base mt-2">{errors.username}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+          <label className="block text-lg font-medium text-gray-700 mb-3">Email</label>
           <input
             type="email"
             name="email"
             value={formData.email || ''}
             onChange={handleChange}
-            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
+            className={`w-full px-6 py-4 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
             placeholder="Enter your email"
           />
-          {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+          {errors.email && <p className="text-red-500 text-base mt-2">{errors.email}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+          <label className="block text-lg font-medium text-gray-700 mb-3">Password</label>
           <input
             type="password"
             name="password"
             value={formData.password || ''}
             onChange={handleChange}
-            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.password ? 'border-red-500' : 'border-gray-300'}`}
+            className={`w-full px-6 py-4 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg ${errors.password ? 'border-red-500' : 'border-gray-300'}`}
             placeholder="Create a password (min 8 characters)"
           />
-          {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
+          {errors.password && <p className="text-red-500 text-base mt-2">{errors.password}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
+          <label className="block text-lg font-medium text-gray-700 mb-3">Date of Birth</label>
           <input
             type="date"
             name="dateOfBirth"
             value={formData.dateOfBirth || ''}
             onChange={handleChange}
-            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.dateOfBirth ? 'border-red-500' : 'border-gray-300'}`}
+            className={`w-full px-6 py-4 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg ${errors.dateOfBirth ? 'border-red-500' : 'border-gray-300'}`}
           />
-          {errors.dateOfBirth && <p className="text-red-500 text-sm mt-1">{errors.dateOfBirth}</p>}
+          {errors.dateOfBirth && <p className="text-red-500 text-base mt-2">{errors.dateOfBirth}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
+          <label className="block text-lg font-medium text-gray-700 mb-3">Gender</label>
           <select
             name="gender"
             value={formData.gender || ''}
             onChange={handleChange}
-            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.gender ? 'border-red-500' : 'border-gray-300'}`}
+            className={`w-full px-6 py-4 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg ${errors.gender ? 'border-red-500' : 'border-gray-300'}`}
           >
             <option value="">Select Gender</option>
             <option value="male">Male</option>
             <option value="female">Female</option>
             <option value="other">Other</option>
           </select>
-          {errors.gender && <p className="text-red-500 text-sm mt-1">{errors.gender}</p>}
+          {errors.gender && <p className="text-red-500 text-base mt-2">{errors.gender}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Height (cm)</label>
+          <label className="block text-lg font-medium text-gray-700 mb-3">Height (cm)</label>
           <input
             type="number"
             name="height"
             value={formData.height || ''}
             onChange={handleChange}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
             placeholder="Enter your height"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Weight (kg)</label>
+          <label className="block text-lg font-medium text-gray-700 mb-3">Weight (kg)</label>
           <input
             type="number"
             name="weight"
             value={formData.weight || ''}
             onChange={handleChange}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
             placeholder="Enter your weight"
           />
         </div>
       </div>
 
-      <div className="flex justify-end pt-6">
+      <div className="flex justify-end pt-12">
         <button
           onClick={validateAndNext}
-          className="px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+          className="px-12 py-4 bg-blue-600 text-white font-semibold text-lg rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-3"
         >
           Next Step
-          <ChevronRight className="w-4 h-4" />
+          <ChevronRight className="w-6 h-6" />
         </button>
       </div>
     </div>
@@ -177,11 +177,11 @@ const RiskFactorsStep = ({ data, onUpdate, onNext, onPrev }) => {
   };
 
   const getBmiColor = (bmi) => {
-    if (!bmi) return '#333';
-    if (bmi < 18.5) return '#3498db';
-    if (bmi < 25) return '#27ae60';
-    if (bmi < 30) return '#f39c12';
-    return '#e74c3c';
+    if (!bmi) return 'text-gray-500';
+    if (bmi < 18.5) return 'text-blue-500';
+    if (bmi < 25) return 'text-green-500';
+    if (bmi < 30) return 'text-yellow-500';
+    return 'text-red-500';
   };
 
   const handleChange = (e) => {
@@ -254,35 +254,38 @@ const RiskFactorsStep = ({ data, onUpdate, onNext, onPrev }) => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="text-center mb-8">
-        <Heart className="w-16 h-16 text-red-500 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-gray-800">Health Risk Factors</h2>
-        <p className="text-gray-600">Help us understand your health profile</p>
+    <div className="max-w-5xl mx-auto">
+      <div className="text-center mb-12">
+        <Heart className="w-20 h-20 text-red-500 mx-auto mb-6" />
+        <h2 className="text-4xl font-bold text-gray-800 mb-4">Health Risk Factors</h2>
+        <p className="text-xl text-gray-600">Help us understand your health profile</p>
       </div>
 
       {/* BMI Display */}
       {bmi && (
-        <div className="bg-gray-50 p-6 rounded-lg text-center">
-          <h3 className="text-lg font-semibold mb-2">Your BMI</h3>
-          <div className="flex items-center justify-center gap-4">
-            <span className="text-3xl font-bold" style={{color: getBmiColor(bmi)}}>{bmi}</span>
-            <span className="text-lg" style={{color: getBmiColor(bmi)}}>{getBmiCategory(bmi)}</span>
+        <div className="bg-gray-50 p-8 rounded-xl text-center mb-12">
+          <h3 className="text-2xl font-semibold mb-4 flex items-center justify-center">
+            <Activity className="w-8 h-8 mr-3" />
+            Your BMI
+          </h3>
+          <div className="flex items-center justify-center gap-6">
+            <span className={`text-5xl font-bold ${getBmiColor(bmi)}`}>{bmi}</span>
+            <span className={`text-2xl font-semibold ${getBmiColor(bmi)}`}>{getBmiCategory(bmi)}</span>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {Object.entries(riskFactorOptions).map(([key, options]) => (
           <div key={key}>
-            <label className="block text-sm font-medium text-gray-700 mb-2 capitalize">
+            <label className="block text-lg font-medium text-gray-700 mb-3 capitalize">
               {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
             </label>
             <select
               name={key}
               value={formData[key] || ''}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
             >
               <option value="">Select...</option>
               {options.map(opt => (
@@ -293,20 +296,20 @@ const RiskFactorsStep = ({ data, onUpdate, onNext, onPrev }) => {
         ))}
       </div>
 
-      <div className="flex justify-between pt-6">
+      <div className="flex justify-between pt-12">
         <button
           onClick={onPrev}
-          className="px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+          className="px-10 py-4 border-2 border-gray-300 text-gray-700 font-semibold text-lg rounded-xl hover:bg-gray-50 transition-colors flex items-center gap-3"
         >
-          <ChevronLeft className="w-4 h-4" />
+          <ChevronLeft className="w-6 h-6" />
           Previous
         </button>
         <button
           onClick={handleNext}
-          className="px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+          className="px-12 py-4 bg-blue-600 text-white font-semibold text-lg rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-3"
         >
           Next Step
-          <ChevronRight className="w-4 h-4" />
+          <ChevronRight className="w-6 h-6" />
         </button>
       </div>
     </div>
@@ -327,8 +330,9 @@ const MedicationsStep = ({ data, onUpdate, onNext, onPrev }) => {
 
     setLoading(true);
     try {
-      const url = buildSearchUrl(API_ENDPOINTS.SEARCH_MEDICATIONS, searchQuery, 10); // ✅ משתמש בקונפיגורציה
-      const response = await fetch(url);      if (response.ok) {
+      const url = buildSearchUrl(API_ENDPOINTS.SEARCH_MEDICATIONS, searchQuery, 10);
+      const response = await fetch(url);
+      if (response.ok) {
         const data = await response.json();
         setSearchResults(data);
       } else {
@@ -379,41 +383,41 @@ const MedicationsStep = ({ data, onUpdate, onNext, onPrev }) => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="text-center mb-8">
-        <Pill className="w-16 h-16 text-green-500 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-gray-800">Current Medications</h2>
-        <p className="text-gray-600">Add medications you're currently taking</p>
+    <div className="max-w-5xl mx-auto">
+      <div className="text-center mb-12">
+        <Pill className="w-20 h-20 text-green-500 mx-auto mb-6" />
+        <h2 className="text-4xl font-bold text-gray-800 mb-4">Current Medications</h2>
+        <p className="text-xl text-gray-600">Add medications you're currently taking</p>
       </div>
 
       {/* Search for medications */}
-      <div className="bg-white p-6 border border-gray-200 rounded-lg">
-        <h3 className="text-lg font-semibold mb-4">Search and Add Medication</h3>
+      <div className="bg-white p-8 border-2 border-gray-200 rounded-xl mb-8">
+        <h3 className="text-2xl font-semibold mb-6">Search and Add Medication</h3>
         <div className="relative">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Type to search for medications..."
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
           />
           {loading && (
-            <div className="absolute right-3 top-3">
-              <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+            <div className="absolute right-4 top-4">
+              <div className="w-6 h-6 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
             </div>
           )}
         </div>
 
         {searchResults.length > 0 && (
-          <div className="mt-2 border border-gray-200 rounded-lg max-h-60 overflow-y-auto">
+          <div className="mt-4 border-2 border-gray-200 rounded-xl max-h-80 overflow-y-auto">
             {searchResults.map((medication) => (
               <div
                 key={medication.cui}
-                className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                className="p-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
                 onClick={() => addMedication(medication)}
               >
-                <div className="font-medium">{medication.name}</div>
-                <div className="text-sm text-gray-500">CUI: {medication.cui}</div>
+                <div className="font-medium text-lg">{medication.name}</div>
+                <div className="text-gray-500">CUI: {medication.cui}</div>
               </div>
             ))}
           </div>
@@ -421,53 +425,54 @@ const MedicationsStep = ({ data, onUpdate, onNext, onPrev }) => {
       </div>
 
       {/* Current medications list */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Your Current Medications ({currentMedications.length})</h3>
+      <div className="space-y-6">
+        <h3 className="text-2xl font-semibold">Your Current Medications ({currentMedications.length})</h3>
         {currentMedications.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            No medications added yet. Search and add medications above.
+          <div className="text-center py-16 text-gray-500">
+            <Pill className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <p className="text-xl">No medications added yet. Search and add medications above.</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {currentMedications.map((medication) => (
-              <div key={medication.id} className="bg-gray-50 p-4 rounded-lg">
-                <div className="flex justify-between items-start mb-3">
-                  <h4 className="font-medium text-lg">{medication.name}</h4>
+              <div key={medication.id} className="bg-gray-50 p-6 rounded-xl">
+                <div className="flex justify-between items-start mb-4">
+                  <h4 className="font-medium text-xl">{medication.name}</h4>
                   <button
                     onClick={() => removeMedication(medication.id)}
-                    className="text-red-500 hover:text-red-700 text-sm"
+                    className="text-red-500 hover:text-red-700 font-medium"
                   >
                     Remove
                   </button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">Dosage</label>
+                    <label className="block text-gray-600 mb-2">Dosage</label>
                     <input
                       type="text"
                       value={medication.dosage}
                       onChange={(e) => updateMedication(medication.id, 'dosage', e.target.value)}
                       placeholder="e.g., 10mg"
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">Frequency</label>
+                    <label className="block text-gray-600 mb-2">Frequency</label>
                     <input
                       type="text"
                       value={medication.frequency}
                       onChange={(e) => updateMedication(medication.id, 'frequency', e.target.value)}
                       placeholder="e.g., Once daily"
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">Start Date</label>
+                    <label className="block text-gray-600 mb-2">Start Date</label>
                     <input
                       type="date"
                       value={medication.startDate}
                       onChange={(e) => updateMedication(medication.id, 'startDate', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -477,20 +482,20 @@ const MedicationsStep = ({ data, onUpdate, onNext, onPrev }) => {
         )}
       </div>
 
-      <div className="flex justify-between pt-6">
+      <div className="flex justify-between pt-12">
         <button
           onClick={onPrev}
-          className="px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+          className="px-10 py-4 border-2 border-gray-300 text-gray-700 font-semibold text-lg rounded-xl hover:bg-gray-50 transition-colors flex items-center gap-3"
         >
-          <ChevronLeft className="w-4 h-4" />
+          <ChevronLeft className="w-6 h-6" />
           Previous
         </button>
         <button
           onClick={handleNext}
-          className="px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+          className="px-12 py-4 bg-blue-600 text-white font-semibold text-lg rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-3"
         >
           Next Step
-          <ChevronRight className="w-4 h-4" />
+          <ChevronRight className="w-6 h-6" />
         </button>
       </div>
     </div>
@@ -504,7 +509,6 @@ const DiseasesStep = ({ data, onUpdate, onNext, onPrev }) => {
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-
   const searchDiseases = async () => {
     if (!searchQuery || searchQuery.length < 2) {
       setSearchResults([]);
@@ -513,9 +517,9 @@ const DiseasesStep = ({ data, onUpdate, onNext, onPrev }) => {
 
     setLoading(true);
     try {
-      const url = buildSearchUrl(API_ENDPOINTS.SEARCH_DISEASES, searchQuery, 10); // ✅ משתמש בקונפיגורציה
+      const url = buildSearchUrl(API_ENDPOINTS.SEARCH_DISEASES, searchQuery, 10);
       const response = await fetch(url);
-        if (response.ok) {
+      if (response.ok) {
         const data = await response.json();
         setSearchResults(data);
       } else {
@@ -560,46 +564,47 @@ const DiseasesStep = ({ data, onUpdate, onNext, onPrev }) => {
   };
 
   const handleNext = () => {
+    setIsSubmitting(true);
     onUpdate({ ...data, diseases: currentDiseases });
     onNext();
   };
 
   return (
-    <div className="space-y-6">
-      <div className="text-center mb-8">
-        <Stethoscope className="w-16 h-16 text-purple-500 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-gray-800">Medical History</h2>
-        <p className="text-gray-600">Add any current or past medical conditions</p>
+    <div className="max-w-5xl mx-auto">
+      <div className="text-center mb-12">
+        <Stethoscope className="w-20 h-20 text-purple-500 mx-auto mb-6" />
+        <h2 className="text-4xl font-bold text-gray-800 mb-4">Medical History</h2>
+        <p className="text-xl text-gray-600">Add any current or past medical conditions</p>
       </div>
 
       {/* Search for diseases */}
-      <div className="bg-white p-6 border border-gray-200 rounded-lg">
-        <h3 className="text-lg font-semibold mb-4">Search and Add Medical Condition</h3>
+      <div className="bg-white p-8 border-2 border-gray-200 rounded-xl mb-8">
+        <h3 className="text-2xl font-semibold mb-6">Search and Add Medical Condition</h3>
         <div className="relative">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Type to search for medical conditions..."
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
           />
           {loading && (
-            <div className="absolute right-3 top-3">
-              <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+            <div className="absolute right-4 top-4">
+              <div className="w-6 h-6 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
             </div>
           )}
         </div>
 
         {searchResults.length > 0 && (
-          <div className="mt-2 border border-gray-200 rounded-lg max-h-60 overflow-y-auto">
+          <div className="mt-4 border-2 border-gray-200 rounded-xl max-h-80 overflow-y-auto">
             {searchResults.map((disease) => (
               <div
                 key={disease.cui}
-                className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                className="p-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
                 onClick={() => addDisease(disease)}
               >
-                <div className="font-medium">{disease.name}</div>
-                <div className="text-sm text-gray-500">CUI: {disease.cui}</div>
+                <div className="font-medium text-lg">{disease.name}</div>
+                <div className="text-gray-500">CUI: {disease.cui}</div>
               </div>
             ))}
           </div>
@@ -607,41 +612,42 @@ const DiseasesStep = ({ data, onUpdate, onNext, onPrev }) => {
       </div>
 
       {/* Current diseases list */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Your Medical Conditions ({currentDiseases.length})</h3>
+      <div className="space-y-6">
+        <h3 className="text-2xl font-semibold">Your Medical Conditions ({currentDiseases.length})</h3>
         {currentDiseases.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            No medical conditions added yet. Search and add conditions above.
+          <div className="text-center py-16 text-gray-500">
+            <Stethoscope className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <p className="text-xl">No medical conditions added yet. Search and add conditions above.</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {currentDiseases.map((disease) => (
-              <div key={disease.id} className="bg-gray-50 p-4 rounded-lg">
-                <div className="flex justify-between items-start mb-3">
-                  <h4 className="font-medium text-lg">{disease.name}</h4>
+              <div key={disease.id} className="bg-gray-50 p-6 rounded-xl">
+                <div className="flex justify-between items-start mb-4">
+                  <h4 className="font-medium text-xl">{disease.name}</h4>
                   <button
                     onClick={() => removeDisease(disease.id)}
-                    className="text-red-500 hover:text-red-700 text-sm"
+                    className="text-red-500 hover:text-red-700 font-medium"
                   >
                     Remove
                   </button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">Diagnosis Date</label>
+                    <label className="block text-gray-600 mb-2">Diagnosis Date</label>
                     <input
                       type="date"
                       value={disease.diagnosisDate}
                       onChange={(e) => updateDisease(disease.id, 'diagnosisDate', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">Severity</label>
+                    <label className="block text-gray-600 mb-2">Severity</label>
                     <select
                       value={disease.severity}
                       onChange={(e) => updateDisease(disease.id, 'severity', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Select severity</option>
                       <option value="mild">Mild</option>
@@ -650,11 +656,11 @@ const DiseasesStep = ({ data, onUpdate, onNext, onPrev }) => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">Status</label>
+                    <label className="block text-gray-600 mb-2">Status</label>
                     <select
                       value={disease.status}
                       onChange={(e) => updateDisease(disease.id, 'status', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="active">Active</option>
                       <option value="resolved">Resolved</option>
@@ -668,18 +674,18 @@ const DiseasesStep = ({ data, onUpdate, onNext, onPrev }) => {
         )}
       </div>
 
-      <div className="flex justify-between pt-6">
+      <div className="flex justify-between pt-12">
         <button
           onClick={onPrev}
-          className="px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+          className="px-10 py-4 border-2 border-gray-300 text-gray-700 font-semibold text-lg rounded-xl hover:bg-gray-50 transition-colors flex items-center gap-3"
         >
-          <ChevronLeft className="w-4 h-4" />
+          <ChevronLeft className="w-6 h-6" />
           Previous
         </button>
         <button
           onClick={handleNext}
           disabled={isSubmitting}
-          className={`px-8 py-3 font-semibold rounded-lg transition-colors flex items-center gap-2 ${
+          className={`px-12 py-4 font-semibold text-lg rounded-xl transition-colors flex items-center gap-3 ${
             isSubmitting 
               ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
               : 'bg-green-600 text-white hover:bg-green-700'
@@ -687,13 +693,13 @@ const DiseasesStep = ({ data, onUpdate, onNext, onPrev }) => {
         >
           {isSubmitting ? (
             <>
-              <div className="w-4 h-4 border-2 border-gray-300 border-t-white rounded-full animate-spin"></div>
+              <div className="w-6 h-6 border-2 border-gray-300 border-t-white rounded-full animate-spin"></div>
               Creating Account...
             </>
           ) : (
             <>
               Complete Setup
-              <Check className="w-4 h-4" />
+              <Check className="w-6 h-6" />
             </>
           )}
         </button>
@@ -861,10 +867,10 @@ const UserDataWizard = () => {
   const StepComponent = steps[currentStep].component;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4">
+    <div className="min-h-screen bg-gray-50 py-12">
+      <div className="max-w-7xl mx-auto px-8">
         {/* Progress Bar */}
-        <div className="mb-8">
+        <div className="mb-16">
           <div className="flex items-center justify-between">
             {steps.map((step, index) => {
               const Icon = step.icon;
@@ -873,23 +879,23 @@ const UserDataWizard = () => {
               
               return (
                 <div key={index} className="flex items-center">
-                  <div className={`flex items-center justify-center w-12 h-12 rounded-full border-2 transition-colors ${
+                  <div className={`flex items-center justify-center w-16 h-16 rounded-full border-4 transition-colors ${
                     isCompleted ? 'bg-green-500 border-green-500 text-white' :
                     isCurrent ? 'bg-blue-500 border-blue-500 text-white' :
                     'bg-white border-gray-300 text-gray-400'
                   }`}>
-                    {isCompleted ? <Check className="w-6 h-6" /> : <Icon className="w-6 h-6" />}
+                    {isCompleted ? <Check className="w-8 h-8" /> : <Icon className="w-8 h-8" />}
                   </div>
-                  <div className="ml-3 hidden sm:block">
-                    <div className={`text-sm font-medium ${isCurrent ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-500'}`}>
+                  <div className="ml-4">
+                    <div className={`text-lg font-medium ${isCurrent ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-500'}`}>
                       Step {index + 1}
                     </div>
-                    <div className={`text-sm ${isCurrent ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-500'}`}>
+                    <div className={`text-base ${isCurrent ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-500'}`}>
                       {step.title}
                     </div>
                   </div>
                   {index < steps.length - 1 && (
-                    <div className={`flex-1 h-1 mx-4 ${isCompleted ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    <div className={`flex-1 h-2 mx-8 rounded-full ${isCompleted ? 'bg-green-500' : 'bg-gray-300'}`} />
                   )}
                 </div>
               );
@@ -898,7 +904,7 @@ const UserDataWizard = () => {
         </div>
 
         {/* Step Content */}
-        <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="bg-white rounded-2xl shadow-xl p-12">
           <StepComponent
             data={userData}
             onUpdate={updateStepData}
@@ -906,12 +912,6 @@ const UserDataWizard = () => {
             onPrev={prevStep}
             isSubmitting={isSubmitting}
           />
-        </div>
-
-        {/* Debug Info (remove in production) */}
-        <div className="mt-4 p-4 bg-gray-100 rounded-lg text-sm text-gray-600">
-          <strong>Debug - Current Data:</strong>
-          <pre className="mt-2 overflow-auto">{JSON.stringify(userData, null, 2)}</pre>
         </div>
       </div>
     </div>
