@@ -1,4 +1,3 @@
-// UserProfileController.java - קובץ חדש שצריך ליצור
 package com.example.mediaid.api;
 
 import com.example.mediaid.bl.UserService;

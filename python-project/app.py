@@ -478,19 +478,8 @@ if __name__ == '__main__':
         initialize_analyzers()
 
         print("\n✅ Server Ready!")
-        print("Available endpoints:")
-        print("  GET  /health              - Health check")
-        print("  GET  /status              - Detailed status")
-        print("  POST /text/analyze        - Full text analysis")
-        print("  POST /text/symptoms       - Extract text symptoms only")
-        print("  POST /image/analyze       - Full image analysis")
-        print("  POST /image/symptoms      - Extract image symptoms only")
-        print("  POST /image/confidence    - Set image confidence threshold")
-        print("  POST /analyze/combined    - Combined text + image analysis")
-        print("\n🚀 Server running on http://localhost:5000")
-        print("="*60)
 
-        # הגדרת גודל קובץ מקסימלי (16MB)
+        # הגדרת גודל קובץ מקסימלי
         app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
         app.run(host='0.0.0.0', port=5000, debug=False)
