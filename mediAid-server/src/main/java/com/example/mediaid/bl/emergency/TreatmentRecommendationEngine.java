@@ -18,6 +18,6 @@ public class TreatmentRecommendationEngine {
     @Autowired
     private UserRepository userRepository;
 
-    
+
 
 }
