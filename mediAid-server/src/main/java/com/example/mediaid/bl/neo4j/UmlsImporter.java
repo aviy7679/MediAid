@@ -10,7 +10,8 @@ import java.util.Map;
 
 public abstract class UmlsImporter {
 
-    private static final Logger log = LoggerFactory.getLogger(UmlsImporter.class);
+    private static final Logger logger = LoggerFactory.getLogger(UmlsImporter.class);
+
     protected final Driver neo4jDriver;
 
     public UmlsImporter(Driver driver) {
@@ -25,7 +26,7 @@ public abstract class UmlsImporter {
                 batch.clear();
             }
         }catch (Exception e) {
-            log.error("Error processing batch: {}", e.getMessage());
+            logger.error("Error processing batch: {}", e.getMessage());
             e.printStackTrace();
         }
     }
@@ -42,7 +43,7 @@ public abstract class UmlsImporter {
                 return null;
             });
         }catch (Exception e) {
-            log.error("Error executing query: {}", e.getMessage());
+            logger.error("Error executing query: {}", e.getMessage());
             e.printStackTrace();
         }
     }

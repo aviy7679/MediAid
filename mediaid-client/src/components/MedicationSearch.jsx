@@ -42,7 +42,7 @@ const MedicationSearch = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(buildSearchUrl(API_ENDPOINTS.SEARCH_MEDICATIONS, query, 15));
+      const response = await fetch(buildSearchUrl(API_ENDPOINTS.SEARCH_MEDICATIONS, query, 30));
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`Server responded with ${response.status}: ${errorText}`);

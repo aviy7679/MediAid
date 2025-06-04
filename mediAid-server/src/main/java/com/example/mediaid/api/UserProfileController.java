@@ -2,8 +2,16 @@ package com.example.mediaid.api;
 
 import com.example.mediaid.bl.UserService;
 import com.example.mediaid.bl.RiskFactorService;
+import com.example.mediaid.dal.UMLS_terms.Disease;
+import com.example.mediaid.dal.UMLS_terms.DiseaseRepository;
+import com.example.mediaid.dal.UMLS_terms.Medication;
+import com.example.mediaid.dal.UMLS_terms.MedicationRepository;
 import com.example.mediaid.dal.User;
 import com.example.mediaid.dal.UserRepository;
+import com.example.mediaid.dal.user_medical_history.UserDisease;
+import com.example.mediaid.dal.user_medical_history.UserDiseaseRepository;
+import com.example.mediaid.dal.user_medical_history.UserMedication;
+import com.example.mediaid.dal.user_medical_history.UserMedicationRepository;
 import com.example.mediaid.security.jwt.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.*;
 
 @RestController
@@ -29,6 +38,14 @@ public class UserProfileController {
 
     @Autowired
     private JwtUtil jwtUtil;
+    @Autowired
+    private MedicationRepository medicationRepository;
+    @Autowired
+    private UserMedicationRepository userMedicationRepository;
+    @Autowired
+    private UserDiseaseRepository userDiseaseRepository;
+    @Autowired
+    private DiseaseRepository diseaseRepository;
 
     // GET /api/user/profile
     @GetMapping("/profile")
@@ -160,14 +177,143 @@ public class UserProfileController {
     // Placeholder endpoints for medications and diseases
     @PostMapping("/medications")
     public ResponseEntity<?> addUserMedications(@RequestBody Map<String, Object> medicationData, HttpServletRequest request) {
-        // TODO: Implement medication management
-        return ResponseEntity.ok(Map.of("message", "Medications endpoint - not implemented yet"));
+        try {
+            UUID userId = extractUserIdFromRequest(request);
+            if (userId == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(createErrorResponse("Invalid or missing authentication token"));
+            }
+            @SuppressWarnings("unchecked")
+                  List<Map<String, Object>> medications = (List<Map<String, Object>>) medicationData.get("medications");
+
+            if (medications == null || medications.isEmpty()) {
+                return ResponseEntity.badRequest().body(createErrorResponse("No medications found"));
+            }
+
+            List<UserMedication> savedMedications = new ArrayList<>();
+            User user = userRepository.findById(userId).orElse(null);
+
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(createErrorResponse("User not found"));
+            }
+
+            for (Map<String, Object> med : medications) {
+                String cui = (String) med.get("cui");
+                String name = (String) med.get("name");
+
+                Medication medication = medicationRepository.findByCui(cui);
+                if (medication == null) {
+                    medication = new Medication();
+                    medication.setCui(cui);
+                    medication.setName(name);
+                    medication= medicationRepository.save(medication);
+
+                }
+                //צור קישור
+                UserMedication userMedication = new UserMedication();
+                userMedication.setUser(user);
+                userMedication.setMedication(medication);
+                userMedication.setDosage((String)med.get("dosage"));
+                userMedication.setFrequency((String)med.get("frequency"));
+                userMedication.setAdministrationRoute((String)med.get("administrationRoute"));
+                userMedication.setIsActive((Boolean)med.getOrDefault("isActive", true));
+                userMedication.setNotes((String)med.get("notes"));
+
+                if(med.get("startDate") != null) {
+                    userMedication.setStartDate(LocalDate.parse((String)med.get("startDate")));
+                }
+                if(med.get("endDate") != null) {
+                    userMedication.setEndDate(LocalDate.parse((String)med.get("endDate")));
+                }
+                UserMedication saved = userMedicationRepository.save(userMedication);
+                savedMedications.add(saved);
+            }
+            return ResponseEntity.ok(Map.of(
+                    "message", "Medications added successfully",
+                    "medications", savedMedications.stream().map(med->Map.of(
+                            "id",med.getId(),
+                            "name", med.getMedication().getName(),
+                            "dosage", med.getDosage(),
+                            "frequency", med.getFrequency()
+                    )).toList()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse("Error saving medications: " + e.getMessage()));
+        }
     }
 
     @PostMapping("/diseases")
-    public ResponseEntity<?> addUserDiseases(@RequestBody Map<String, Object> diseaseData, HttpServletRequest request) {
-        // TODO: Implement disease management
-        return ResponseEntity.ok(Map.of("message", "Diseases endpoint - not implemented yet"));
+    public ResponseEntity<?> addUserDiseases(@RequestBody Map<String, Object> requestData, HttpServletRequest request) {
+        try {
+            UUID userId = extractUserIdFromRequest(request);
+            if (userId == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(createErrorResponse("Invalid or missing authorization token"));
+            }
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> diseasesData = (List<Map<String, Object>>) requestData.get("diseases");
+
+            if (diseasesData == null || diseasesData.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("No diseases provided"));
+            }
+
+            List<UserDisease> savedDiseases = new ArrayList<>();
+            User user = userRepository.findById(userId).orElse(null);
+
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(createErrorResponse("User not found"));
+            }
+
+            for (Map<String, Object> diseaseData : diseasesData) {
+                String cui = (String) diseaseData.get("cui");
+                String name = (String) diseaseData.get("name");
+
+                // מצא או צור Disease
+                Disease disease = diseaseRepository.findByCui(cui);
+                if (disease == null) {
+                    disease = new Disease();
+                    disease.setCui(cui);
+                    disease.setName(name);
+                    disease = diseaseRepository.save(disease);
+                }
+
+                // צור UserDisease
+                UserDisease userDisease = new UserDisease();
+                userDisease.setUser(user);
+                userDisease.setDisease(disease);
+                userDisease.setStatus((String) diseaseData.getOrDefault("status", "active"));
+                userDisease.setSeverity((String) diseaseData.get("severity"));
+                userDisease.setNotes((String) diseaseData.get("notes"));
+
+                // תאריכים
+                if (diseaseData.get("diagnosisDate") != null) {
+                    userDisease.setDiagnosisDate(LocalDate.parse((String) diseaseData.get("diagnosisDate")));
+                }
+                if (diseaseData.get("endDate") != null) {
+                    userDisease.setEndDate(LocalDate.parse((String) diseaseData.get("endDate")));
+                }
+
+                UserDisease saved = userDiseaseRepository.save(userDisease);
+                savedDiseases.add(saved);
+            }
+
+            return ResponseEntity.ok(Map.of(
+                    "message", "Diseases saved successfully",
+                    "count", savedDiseases.size(),
+                    "diseases", savedDiseases.stream().map(disease -> Map.of(
+                            "id", disease.getId(),
+                            "name", disease.getDisease().getName(),
+                            "status", disease.getStatus(),
+                            "severity", disease.getSeverity()
+                    )).toList()
+            ));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Error saving diseases: " + e.getMessage()));
+        }
     }
 
     // Helper methods

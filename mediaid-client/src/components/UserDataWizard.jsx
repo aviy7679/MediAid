@@ -330,7 +330,7 @@ const MedicationsStep = ({ data, onUpdate, onNext, onPrev }) => {
 
     setLoading(true);
     try {
-      const url = buildSearchUrl(API_ENDPOINTS.SEARCH_MEDICATIONS, searchQuery, 10);
+      const url = buildSearchUrl(API_ENDPOINTS.SEARCH_MEDICATIONS, searchQuery, 30);
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
@@ -517,7 +517,7 @@ const DiseasesStep = ({ data, onUpdate, onNext, onPrev }) => {
 
     setLoading(true);
     try {
-      const url = buildSearchUrl(API_ENDPOINTS.SEARCH_DISEASES, searchQuery, 10);
+      const url = buildSearchUrl(API_ENDPOINTS.SEARCH_DISEASES, searchQuery, 30);
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
@@ -739,8 +739,11 @@ const UserDataWizard = () => {
 
   const submitAllData = async () => {
     setIsSubmitting(true);
+    console.log(' Starting account creation with data:', userData);
+    
     try {
       // Step 1: Create user account
+      console.log('Step 1: Creating user account...');
       const signUpResponse = await fetch(API_ENDPOINTS.CREATE_ACCOUNT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -754,101 +757,136 @@ const UserDataWizard = () => {
           weight: userData.weight
         })
       });
-
+  
       if (!signUpResponse.ok) {
         const errorData = await signUpResponse.json();
         throw new Error(errorData.message || 'Failed to create account');
       }
-
+  
       const signUpData = await signUpResponse.json();
       const token = signUpData.token;
+      console.log('Account created, token received');
       
       // Store authentication token
       localStorage.setItem('mediaid_token', token);
-
+  
       // Step 2: Submit risk factors if provided
       if (userData.smokingStatus || userData.alcoholConsumption || userData.physicalActivity) {
-        const riskFactorsResponse = await fetch(API_ENDPOINTS.RISK_FACTORS, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            smokingStatus: userData.smokingStatus,
-            alcoholConsumption: userData.alcoholConsumption,
-            physicalActivity: userData.physicalActivity,
-            bloodPressure: userData.bloodPressure,
-            stressLevel: userData.stressLevel,
-            ageGroup: userData.ageGroup,
-            familyHeartDisease: userData.familyHeartDisease,
-            familyCancer: userData.familyCancer,
-            height: userData.height,
-            weight: userData.weight,
-            bmi: userData.bmi
-          })
-        });
-
-        if (!riskFactorsResponse.ok) {
-          console.warn('Failed to submit risk factors');
+        console.log('Step 2: Submitting risk factors...');
+        try {
+          const riskFactorsResponse = await fetch(API_ENDPOINTS.RISK_FACTORS, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              smokingStatus: userData.smokingStatus,
+              alcoholConsumption: userData.alcoholConsumption,
+              physicalActivity: userData.physicalActivity,
+              bloodPressure: userData.bloodPressure,
+              stressLevel: userData.stressLevel,
+              ageGroup: userData.ageGroup,
+              familyHeartDisease: userData.familyHeartDisease,
+              familyCancer: userData.familyCancer,
+              height: userData.height,
+              weight: userData.weight,
+              bmi: userData.bmi
+            })
+          });
+  
+          if (riskFactorsResponse.ok) {
+            console.log('Risk factors submitted successfully');
+          } else {
+            console.warn('Failed to submit risk factors:', await riskFactorsResponse.text());
+          }
+        } catch (error) {
+          console.warn('Risk factors submission error:', error);
         }
       }
-
+  
       // Step 3: Submit medications if provided
       if (userData.medications && userData.medications.length > 0) {
-        const medicationsResponse = await fetch(API_ENDPOINTS.USER_MEDICATIONS, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
+        console.log(' Step 3: Submitting medications...', userData.medications.length, 'medications');
+        try {
+          const medicationsData = {
             medications: userData.medications.map(med => ({
               cui: med.cui,
               name: med.name,
-              dosage: med.dosage,
-              frequency: med.frequency,
-              startDate: med.startDate,
-              endDate: med.endDate,
+              dosage: med.dosage || '',
+              frequency: med.frequency || '',
+              startDate: med.startDate || null,
+              endDate: med.endDate || null,
               administrationRoute: med.administrationRoute || 'oral',
               isActive: med.isActive !== false,
-              notes: med.notes
+              notes: med.notes || ''
             }))
-          })
-        });
-
-        if (!medicationsResponse.ok) {
-          console.warn('Failed to submit medications');
+          };
+          
+          console.log('Sending medications data:', medicationsData);
+          
+          const medicationsResponse = await fetch(API_ENDPOINTS.USER_MEDICATIONS, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(medicationsData)
+          });
+  
+          if (medicationsResponse.ok) {
+            const medicationsResult = await medicationsResponse.json();
+            console.log('Medications submitted successfully:', medicationsResult);
+          } else {
+            const errorText = await medicationsResponse.text();
+            console.error('Failed to submit medications:', medicationsResponse.status, errorText);
+          }
+        } catch (error) {
+          console.error('Medications submission error:', error);
         }
       }
-
+  
       // Step 4: Submit diseases if provided
       if (userData.diseases && userData.diseases.length > 0) {
-        const diseasesResponse = await fetch(API_ENDPOINTS.USER_DISEASES, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
+        console.log('Step 4: Submitting diseases...', userData.diseases.length, 'diseases');
+        try {
+          const diseasesData = {
             diseases: userData.diseases.map(disease => ({
               cui: disease.cui,
               name: disease.name,
-              diagnosisDate: disease.diagnosisDate,
-              endDate: disease.endDate,
+              diagnosisDate: disease.diagnosisDate || null,
+              endDate: disease.endDate || null,
               status: disease.status || 'active',
-              severity: disease.severity,
-              notes: disease.notes
+              severity: disease.severity || '',
+              notes: disease.notes || ''
             }))
-          })
-        });
-
-        if (!diseasesResponse.ok) {
-          console.warn('Failed to submit diseases');
+          };
+          
+          console.log('Sending diseases data:', diseasesData);
+          
+          const diseasesResponse = await fetch(API_ENDPOINTS.USER_DISEASES, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(diseasesData)
+          });
+  
+          if (diseasesResponse.ok) {
+            const diseasesResult = await diseasesResponse.json();
+            console.log('Diseases submitted successfully:', diseasesResult);
+          } else {
+            const errorText = await diseasesResponse.text();
+            console.error('Failed to submit diseases:', diseasesResponse.status, errorText);
+          }
+        } catch (error) {
+          console.error('Diseases submission error:', error);
         }
       }
-
+  
       // Success - redirect to profile or dashboard
+      console.log('All data submitted successfully!');
       alert('Account created successfully! Welcome to MediAid!');
       window.location.href = '/homePage';
       

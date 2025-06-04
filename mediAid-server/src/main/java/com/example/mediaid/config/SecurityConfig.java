@@ -1,4 +1,4 @@
-package com.example.mediaid.utils;
+package com.example.mediaid.config;
 
 import com.example.mediaid.security.jwt.JwtFilter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,7 +55,8 @@ public class SecurityConfig {
                         .requestMatchers("/logIn", "/api/user/create-account", "/error").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
-                        .requestMatchers("/api/admin/import/**").permitAll()
+                        .requestMatchers("/api/admin/**").permitAll()
+                        .requestMatchers("/api/medications/search", "/api/diseases/search").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

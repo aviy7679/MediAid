@@ -7,7 +7,6 @@ import {
 const TreatmentGuidelines = () => {
   const [guidelines, setGuidelines] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedGuideline, setSelectedGuideline] = useState(null);
