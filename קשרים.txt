@@ -1,0 +1,3 @@
+medication->disease      TREATS
+disease->symptom        CAUSES_SYMPTOM
+medication->symptom    CAUSES_SIDE_EFFECT

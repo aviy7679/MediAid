@@ -22,7 +22,6 @@ public class DemoMode {
 //            "C3277399", // Depression (דיכאון)
 //            "C4228281", // Anxiety (חרדה)
             "C4229468", // Anemia (אנמיה)
-            // מחלות נפוצות נוספות
             "C0002395", // Alzheimer's disease (מחלת אלצהיימר)
             "C3553282", // Irritable bowel syndrome (תסמונת המעי הרגיז)
             "C4229251", // Gastroesophageal reflux disease (ריפלוקס / GERD)
@@ -55,7 +54,6 @@ public class DemoMode {
             "C0012833", // Dizziness (סחרחורת)
             "C0030193", // Pain (כאב)
             "C0015672", // Fatigue (עייפות)
-            // סימפטומים ותופעות לוואי נפוצים נוספים
             "C3554472", // Diarrhea (שלשול)
             "C1963177", // Muscle pain (כאבי שרירים)
             "C1969971", // Insomnia (נדודי שינה)
@@ -96,7 +94,6 @@ public class DemoMode {
             "C0017725", // Glucose (גלוקוז)
             "C0021655", // Insulin (אינסולין)
             "C0000970",  // Acetaminophen (אקטמינופן)
-            // תרופות נפוצות נוספות
             "C0025810", // Methylphenidate (ריטלין)
             "C0016365", // Fluoxetine (פרוזאק)
             "C0074393", // Sertraline (סרטרלין)
