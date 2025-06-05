@@ -12,6 +12,7 @@ import com.example.mediaid.dal.user_medical_history.UserDisease;
 import com.example.mediaid.dal.user_medical_history.UserDiseaseRepository;
 import com.example.mediaid.dal.user_medical_history.UserMedication;
 import com.example.mediaid.dal.user_medical_history.UserMedicationRepository;
+import com.example.mediaid.dto.LoginRequest;
 import com.example.mediaid.security.jwt.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -122,6 +123,35 @@ public class UserProfileController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("Error retrieving profile: " + e.getMessage()));
+        }
+    }
+
+        @PostMapping("/logIn")
+    public ResponseEntity<?> logIn(@RequestBody LoginRequest loginRequest) {
+        try {
+            System.out.println("LogIn request received for email: " + loginRequest.getMail());
+            UserService.Result result = userService.checkEntry(loginRequest.getMail(), loginRequest.getPassword());
+
+            switch (result) {
+                case SUCCESS:
+                    User user = userService.findByEmail(loginRequest.getMail());
+                    String token = jwtUtil.generateToken(user.getUsername(), user.getEmail(), user.getUserId());
+
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("token", token);
+                    response.put("username", user.getUsername());
+                    response.put("email", user.getEmail());
+                    response.put("message", "User logged in successfully");
+
+                    return ResponseEntity.ok(response);
+                case NOT_EXISTS:
+                    return ResponseEntity.status(404).body(createErrorResponse("User does not exist"));
+                default:
+                    return ResponseEntity.status(401).body(createErrorResponse("Wrong password"));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(createErrorResponse("Server error: " + e.getMessage()));
         }
     }
 

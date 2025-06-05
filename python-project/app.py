@@ -29,7 +29,7 @@ def initialize_analyzers():
 
     try:
         start_time = time.time()
-        logger.info("🏥 Starting to initialize analyzers...")
+        logger.info("Starting to initialize analyzers...")
         print("="*60)
 
         # בדיקת קיום קובץ המודל לטקסט
@@ -37,20 +37,20 @@ def initialize_analyzers():
             raise FileNotFoundError(f"Text model file not found: {TEXT_MODEL_PATH}")
 
         # יצירת המנתחים
-        print("📝 Initializing Text Analyzer...")
+        print("Initializing Text Analyzer...")
         text_analyzer = TextAnalyzer(model_path=TEXT_MODEL_PATH)
         text_analyzer.load_model()
 
-        print("🖼️  Initializing Image Analyzer...")
+        print("Initializing Image Analyzer...")
         image_analyzer = ImageAnalyzer(min_confidence=IMAGE_MIN_CONFIDENCE)
         image_analyzer.load_model()
 
         end_time = time.time()
         print("="*60)
-        logger.info(f"✅ Both analyzers initialized successfully in {end_time - start_time:.2f} seconds")
+        logger.info(f"Both analyzers initialized successfully in {end_time - start_time:.2f} seconds")
 
     except Exception as e:
-        logger.error(f"❌ Failed to initialize analyzers: {e}")
+        logger.error(f"Failed to initialize analyzers: {e}")
         raise
 
 @app.route('/health', methods=['GET'])
@@ -472,12 +472,12 @@ def too_large(error):
 
 if __name__ == '__main__':
     try:
-        print("🏥 Starting Combined Symptom Analysis Server...")
+        print("Starting Combined Symptom Analysis Server...")
         print("="*60)
         # אתחול המנתחים
         initialize_analyzers()
 
-        print("\n✅ Server Ready!")
+        print("\nServer Ready!")
 
         # הגדרת גודל קובץ מקסימלי
         app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -486,5 +486,5 @@ if __name__ == '__main__':
 
     except Exception as e:
         logger.error(f"Failed to start server: {e}")
-        print(f"❌ Failed to start server: {e}")
+        print(f"Failed to start server: {e}")
         exit(1)

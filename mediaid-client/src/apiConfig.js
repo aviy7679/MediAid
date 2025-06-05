@@ -2,7 +2,7 @@ const API_BASE_URL = 'http://localhost:8080';
 
 export const API_ENDPOINTS = {
   // Auth endpoints
-  LOGIN: `${API_BASE_URL}/logIn`,
+  LOGIN: `${API_BASE_URL}/api/user/logIn`,
   SIGNUP: `${API_BASE_URL}/signUp`,
   VALIDATE_TOKEN: `${API_BASE_URL}/validateToken`,
   
@@ -19,7 +19,7 @@ export const API_ENDPOINTS = {
   USER_DISEASES: `${API_BASE_URL}/api/user/diseases`,
   
   // Data upload
-  UPLOAD_DATA: `${API_BASE_URL}/uploadData`
+  UPLOAD_DATA: `${API_BASE_URL}/upload-data`,
 };
 
 // Helper functions for building URLs with parameters

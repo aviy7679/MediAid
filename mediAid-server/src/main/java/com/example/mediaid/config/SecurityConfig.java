@@ -52,7 +52,8 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/logIn", "/api/user/create-account", "/error").permitAll()
+                        .requestMatchers("api/user/logIn", "/api/user/create-account", "/error").permitAll()
+                        .requestMatchers("api/upload-data").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers("/api/admin/**").permitAll()

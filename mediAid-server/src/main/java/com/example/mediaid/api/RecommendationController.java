@@ -63,7 +63,7 @@ public class RecommendationController {
                     var textSymptom = symptomAnalysisService.extractSymptomsFromText(text);
                     allExtractedSymptoms.addAll(textSymptom);
                     processedInputs.add("text");
-                    logger.info("Extracted {} symptoms from text", processedInputs.size());
+                    logger.info("Extracted {} symptoms from text", textSymptom.size());
                 } catch (Exception e) {
                     logger.error("Error processing text: {}", e.getMessage());
                     processedInputs.add("text(error: " + e.getMessage() + ")");
