@@ -19,7 +19,7 @@ export const API_ENDPOINTS = {
   USER_DISEASES: `${API_BASE_URL}/api/user/diseases`,
   
   // Data upload
-  UPLOAD_DATA: `${API_BASE_URL}/upload-data`,
+  UPLOAD_DATA: `${API_BASE_URL}/api/upload-data`,
 };
 
 // Helper functions for building URLs with parameters
