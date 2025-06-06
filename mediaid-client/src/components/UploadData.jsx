@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Camera, Mic, Upload, FileText, ArrowLeft, CheckCircle, AlertCircle, X, Play, Pause } from 'lucide-react';
+import { Camera, Mic, Upload, FileText, ArrowLeft, CheckCircle, AlertCircle, X } from 'lucide-react';
 import { API_ENDPOINTS } from '../apiConfig';
+import TreatmentPlanDisplay from './TreatmentPlanDisplay';
 
 export default function UploadData() {
     // Basic information
@@ -24,9 +25,10 @@ export default function UploadData() {
     const [uploadStatus, setUploadStatus] = useState("");
     const [isUploading, setIsUploading] = useState(false);
     const [uploadSuccess, setUploadSuccess] = useState(false);
-    const [ocrResult, setOcrResult] = useState("");
-    const [treatmentGuidelines, setTreatmentGuidelines] = useState([]);
-    const [showGuidelines, setShowGuidelines] = useState(false);
+    
+    // Server response data
+    const [serverResponse, setServerResponse] = useState(null);
+    const [showTreatmentPlan, setShowTreatmentPlan] = useState(false);
 
     // Navigation function
     const navigate = (path) => {
@@ -217,13 +219,20 @@ export default function UploadData() {
     // Submit data to server
     const handleSubmit = async () => {
         setUploadStatus("");
-        setOcrResult("");
         setUploadSuccess(false);
-        setTreatmentGuidelines([]);
-        setShowGuidelines(false);
+        setServerResponse(null);
+        setShowTreatmentPlan(false);
         
         if (!data.text && !data.image && !data.audio) {
             setUploadStatus("Please provide at least one form of medical data (text, image, or audio).");
+            return;
+        }
+
+        // בדיקת אימות
+        const token = localStorage.getItem('mediaid_token');
+        if (!token) {
+            setUploadStatus("Authentication required. Please log in again.");
+            navigate('/login');
             return;
         }
 
@@ -234,148 +243,63 @@ export default function UploadData() {
 
         try {
             setIsUploading(true);
-            setUploadStatus("Uploading and processing your medical data...");
+            setUploadStatus("Uploading and analyzing your medical data...");
 
             const response = await fetch(API_ENDPOINTS.UPLOAD_DATA, {
                 method: "POST",
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
                 body: formData
             });
 
             if (response.ok) {
-                const responseText = await response.text();
+                const responseData = await response.json();
+                console.log('Server response:', responseData);
                 
-                try {
-                    const responseData = JSON.parse(responseText);
+                setServerResponse(responseData);
+                
+                if (responseData.success) {
+                    setUploadStatus("Analysis completed successfully!");
+                    setUploadSuccess(true);
                     
-                    if (responseData.guidelines && responseData.guidelines.length > 0) {
-                        setTreatmentGuidelines(responseData.guidelines);
-                        setShowGuidelines(true);
-                        setUploadStatus("Analysis complete! Here are your personalized treatment recommendations:");
+                    // אם יש תכנית טיפול, הצג אותה
+                    if (responseData.treatmentPlan) {
+                        setTimeout(() => {
+                            setShowTreatmentPlan(true);
+                        }, 1000);
                     } else {
-                        setUploadStatus("Data processed successfully, but no specific guidelines were generated.");
+                        setUploadStatus("Data processed successfully, but no specific treatment plan was generated.");
                     }
-                    
-                    if (responseData.ocrResult) {
-                        setOcrResult(responseData.ocrResult);
-                    }
-                } catch (jsonError) {
-                    setUploadStatus("Data uploaded and processed successfully!");
-                    
-                    if (responseText.includes("OCR Result:")) {
-                        const ocrText = responseText.split("OCR Result: ")[1];
-                        setOcrResult(ocrText);
-                    }
-                    
-                    setTimeout(() => {
-                        setTreatmentGuidelines(generateMockGuidelines(data.text, ocrResult));
-                        setShowGuidelines(true);
-                        setUploadStatus("Analysis complete! Here are your treatment recommendations:");
-                    }, 1000);
+                } else {
+                    setUploadStatus(`Analysis failed: ${responseData.message || 'Unknown error'}`);
                 }
                 
-                setUploadSuccess(true);
-                
+            } else if (response.status === 401) {
+                localStorage.removeItem('mediaid_token');
+                setUploadStatus("Session expired. Please log in again.");
+                navigate('/login');
+            } else if (response.status === 403) {
+                setUploadStatus("Access denied. Please ensure you are logged in properly.");
             } else {
                 const errorText = await response.text();
-                setUploadStatus(`Upload failed: ${errorText}`);
+                setUploadStatus(`Upload failed (${response.status}): ${errorText}`);
             }
         } catch (error) {
+            console.error('Upload error:', error);
             setUploadStatus(`Error during upload: ${error.message}`);
         } finally {
             setIsUploading(false);
         }
     };
 
-    // Generate mock guidelines based on input text
-    const generateMockGuidelines = (text, ocr) => {
-        const allSymptoms = (text + " " + ocr).toLowerCase();
-        const guidelines = [];
-
-        if (allSymptoms.includes('headache') || allSymptoms.includes('head pain')) {
-            guidelines.push({
-                id: 1,
-                title: "Headache Management",
-                priority: "medium",
-                category: "Pain Management",
-                recommendations: [
-                    "Rest in a quiet, dark room",
-                    "Apply cold compress to forehead for 15-20 minutes",
-                    "Stay hydrated - drink plenty of water",
-                    "Over-the-counter pain relief: Ibuprofen 400mg or Paracetamol 1000mg",
-                    "Avoid loud noises and bright lights"
-                ],
-                warnings: ["If headache persists over 24 hours or worsens, seek medical attention"],
-                followUp: "Monitor symptoms for 24-48 hours"
-            });
-        }
-
-        if (allSymptoms.includes('fever') || allSymptoms.includes('temperature')) {
-            guidelines.push({
-                id: 2,
-                title: "Fever Management",
-                priority: "high",
-                category: "General Care",
-                recommendations: [
-                    "Monitor temperature every 2-4 hours",
-                    "Increase fluid intake - water, herbal teas, broths",
-                    "Rest and avoid strenuous activities",
-                    "Paracetamol 1000mg every 6 hours (max 4g/day)",
-                    "Light clothing and cool environment",
-                    "Lukewarm sponge bath if temperature >38.5°C"
-                ],
-                warnings: ["Seek immediate medical attention if temperature >39.5°C or if accompanied by severe symptoms"],
-                followUp: "If fever persists >3 days or worsens, consult healthcare provider"
-            });
-        }
-
-        if (allSymptoms.includes('cough')) {
-            guidelines.push({
-                id: 3,
-                title: "Cough Treatment",
-                priority: "medium",
-                category: "Respiratory",
-                recommendations: [
-                    "Increase fluid intake to thin mucus",
-                    "Honey and warm water (1-2 teaspoons honey in warm water)",
-                    "Use humidifier or inhale steam from hot shower",
-                    "Avoid irritants like smoke and strong odors",
-                    "Sleep with head elevated",
-                    "Consider cough suppressant if dry cough interferes with sleep"
-                ],
-                warnings: ["Seek medical attention if cough produces blood, persists >3 weeks, or is accompanied by high fever"],
-                followUp: "Monitor for improvement over 7-10 days"
-            });
-        }
-
-        if (guidelines.length === 0) {
-            guidelines.push({
-                id: 4,
-                title: "General Health Monitoring",
-                priority: "low",
-                category: "Preventive Care",
-                recommendations: [
-                    "Monitor your symptoms closely",
-                    "Maintain a healthy diet and stay hydrated",
-                    "Get adequate rest (7-9 hours of sleep)",
-                    "Light exercise if feeling well",
-                    "Practice good hygiene"
-                ],
-                warnings: ["Contact healthcare provider if symptoms worsen or new symptoms develop"],
-                followUp: "Consider follow-up consultation if symptoms persist or change"
-            });
-        }
-
-        return guidelines;
-    };
-
     // Clear all data
     const clearAllData = () => {
         setData({ text: "", image: null, audio: null });
         setUploadStatus("");
-        setOcrResult("");
         setUploadSuccess(false);
-        setTreatmentGuidelines([]);
-        setShowGuidelines(false);
+        setServerResponse(null);
+        setShowTreatmentPlan(false);
         
         if (capturedImage) {
             URL.revokeObjectURL(capturedImage);
@@ -391,6 +315,15 @@ export default function UploadData() {
 
     return (
         <div className="min-h-screen bg-gray-50">
+            {/* Treatment Plan Modal */}
+            {showTreatmentPlan && serverResponse && (
+                <TreatmentPlanDisplay
+                    treatmentPlan={serverResponse.treatmentPlan}
+                    extractedSymptoms={serverResponse.extractedSymptoms}
+                    onClose={() => setShowTreatmentPlan(false)}
+                />
+            )}
+
             {/* Header */}
             <div className="bg-white shadow-sm border-b border-gray-200">
                 <div className="max-w-7xl mx-auto px-8 py-6">
@@ -403,8 +336,8 @@ export default function UploadData() {
                                 <ArrowLeft className="w-6 h-6" />
                             </button>
                             <div>
-                                <h1 className="text-3xl font-bold text-blue-600">Medical Data Upload</h1>
-                                <p className="text-xl text-gray-600 mt-2">Upload medical documents, images, or recordings for analysis</p>
+                                <h1 className="text-3xl font-bold text-blue-600">Medical Data Upload & Analysis</h1>
+                                <p className="text-xl text-gray-600 mt-2">Upload medical documents, images, or recordings for AI-powered analysis</p>
                             </div>
                         </div>
                         {(data.text || data.image || data.audio) && (
@@ -427,23 +360,16 @@ export default function UploadData() {
                         <div className="flex-1">
                             <p className="text-green-800 font-semibold text-lg">Analysis Complete!</p>
                             <p className="text-green-700">
-                                {showGuidelines 
-                                    ? "Your personalized treatment recommendations are displayed below."
-                                    : "Your medical data has been processed successfully."
-                                }
+                                Your medical data has been processed successfully.
+                                {serverResponse?.treatmentPlan && " Click below to view your treatment recommendations."}
                             </p>
                         </div>
-                        {showGuidelines && (
+                        {serverResponse?.treatmentPlan && (
                             <button
-                                onClick={() => {
-                                    const guidelinesSection = document.querySelector('[data-guidelines]');
-                                    if (guidelinesSection) {
-                                        guidelinesSection.scrollIntoView({ behavior: 'smooth' });
-                                    }
-                                }}
+                                onClick={() => setShowTreatmentPlan(true)}
                                 className="ml-6 px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
                             >
-                                View Recommendations
+                                View Treatment Plan
                             </button>
                         )}
                     </div>
@@ -633,7 +559,7 @@ export default function UploadData() {
                         {isUploading ? (
                             <>
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mr-4"></div>
-                                Processing...
+                                Analyzing Medical Data...
                             </>
                         ) : (
                             <>
@@ -648,14 +574,14 @@ export default function UploadData() {
                         <div className={`mt-6 p-6 rounded-xl ${
                             uploadStatus.includes("success") || uploadSuccess
                                 ? "bg-green-50 border-2 border-green-200" 
-                                : uploadStatus.includes("failed") || uploadStatus.includes("Error")
+                                : uploadStatus.includes("failed") || uploadStatus.includes("Error") || uploadStatus.includes("denied")
                                 ? "bg-red-50 border-2 border-red-200"
                                 : "bg-blue-50 border-2 border-blue-200"
                         }`}>
                             <p className={`text-lg ${
                                 uploadStatus.includes("success") || uploadSuccess
                                     ? "text-green-700" 
-                                    : uploadStatus.includes("failed") || uploadStatus.includes("Error")
+                                    : uploadStatus.includes("failed") || uploadStatus.includes("Error") || uploadStatus.includes("denied")
                                     ? "text-red-700"
                                     : "text-blue-700"
                             }`}>
@@ -663,107 +589,41 @@ export default function UploadData() {
                             </p>
                         </div>
                     )}
-                    
-                    {/* OCR Result Section */}
-                    {ocrResult && (
-                        <div className="mt-6 p-6 bg-blue-50 border-2 border-blue-200 rounded-xl">
-                            <h4 className="font-semibold text-blue-900 mb-3 text-lg">Extracted Text from Image:</h4>
-                            <p className="text-blue-800 whitespace-pre-wrap">{ocrResult}</p>
-                        </div>
-                    )}
 
-                    {/* Treatment Guidelines Display */}
-                    {showGuidelines && treatmentGuidelines.length > 0 && (
-                        <div className="mt-8 space-y-6" data-guidelines>
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-2xl font-semibold text-gray-900">📋 Treatment Recommendations</h3>
-                                <button
-                                    onClick={() => setShowGuidelines(false)}
-                                    className="text-gray-500 hover:text-gray-700 p-2"
-                                >
-                                    <X className="w-6 h-6" />
-                                </button>
-                            </div>
-                            
-                            {treatmentGuidelines.map((guideline) => (
-                                <div key={guideline.id} className="border-2 border-gray-200 rounded-xl p-8 bg-white">
-                                    <div className="flex items-start justify-between mb-6">
-                                        <div>
-                                            <h4 className="font-bold text-gray-900 text-2xl">{guideline.title}</h4>
-                                            <div className="flex items-center gap-3 mt-2">
-                                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                                                    guideline.priority === 'high' ? 'bg-red-100 text-red-800' :
-                                                    guideline.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                                    'bg-green-100 text-green-800'
-                                                }`}>
-                                                    {guideline.priority} priority
-                                                </span>
-                                                <span className="text-gray-500 text-lg">{guideline.category}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Recommendations */}
-                                    <div className="mb-6">
-                                        <h5 className="font-semibold text-gray-800 mb-4 text-lg">✅ Recommended Actions:</h5>
-                                        <ul className="space-y-2">
-                                            {guideline.recommendations.map((rec, index) => (
-                                                <li key={index} className="text-gray-700 flex items-start">
-                                                    <span className="text-green-600 mr-3 mt-1">•</span>
-                                                    {rec}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                    
-                                    {/* Warnings */}
-                                    {guideline.warnings && guideline.warnings.length > 0 && (
-                                        <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
-                                            <h5 className="font-semibold text-red-800 mb-3 text-lg">⚠️ Important Warnings:</h5>
-                                            <ul className="space-y-2">
-                                                {guideline.warnings.map((warning, index) => (
-                                                    <li key={index} className="text-red-700 flex items-start">
-                                                        <span className="text-red-600 mr-3 mt-1">•</span>
-                                                        {warning}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    )}
-                                    
-                                    {/* Follow-up */}
-                                    {guideline.followUp && (
-                                        <div className="p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
-                                            <h5 className="font-semibold text-blue-800 mb-2 text-lg">📅 Follow-up:</h5>
-                                            <p className="text-blue-700">{guideline.followUp}</p>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                            
-                            <div className="mt-8 p-6 bg-gray-50 border-2 border-gray-200 rounded-xl">
-                                <p className="text-gray-600 text-center">
-                                    <strong>Disclaimer:</strong> These recommendations are for informational purposes only and should not replace professional medical advice. 
-                                    Always consult with a qualified healthcare provider for proper diagnosis and treatment.
-                                </p>
+                    {/* Analysis Summary */}
+                    {uploadSuccess && serverResponse && (
+                        <div className="mt-6 p-6 bg-blue-50 border-2 border-blue-200 rounded-xl">
+                            <h4 className="font-semibold text-blue-900 mb-3 text-lg">Analysis Summary:</h4>
+                            <div className="space-y-2 text-blue-800">
+                                {serverResponse.extractedSymptoms && (
+                                    <p>• Found {serverResponse.extractedSymptoms.length} symptoms</p>
+                                )}
+                                {serverResponse.treatmentPlan && (
+                                    <p>• Generated treatment plan with {serverResponse.treatmentPlan.urgencyLevel} priority</p>
+                                )}
+                                {serverResponse.processedInputs && (
+                                    <p>• Processed: {serverResponse.processedInputs.join(', ')}</p>
+                                )}
                             </div>
                         </div>
                     )}
 
                     {/* Quick Actions after upload */}
-                    {uploadSuccess && !showGuidelines && (
+                    {uploadSuccess && (
                         <div className="mt-6 flex gap-4">
+                            {serverResponse?.treatmentPlan && (
+                                <button
+                                    onClick={() => setShowTreatmentPlan(true)}
+                                    className="flex-1 px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-medium"
+                                >
+                                    View Full Treatment Plan
+                                </button>
+                            )}
                             <button
                                 onClick={() => navigate('/treatment-guidelines')}
-                                className="flex-1 px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-medium"
-                            >
-                                View General Guidelines
-                            </button>
-                            <button
-                                onClick={() => navigate('/profile')}
                                 className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium"
                             >
-                                Update Profile
+                                Browse General Guidelines
                             </button>
                         </div>
                     )}

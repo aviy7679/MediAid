@@ -1,7 +1,6 @@
 package com.example.mediaid.bl.neo4j;
 
 
-import com.example.mediaid.bl.DemoMode;
 import com.example.mediaid.dal.UMLS_terms.Disease;
 import com.example.mediaid.dal.UMLS_terms.DiseaseRepository;
 import com.example.mediaid.dal.UMLS_terms.Medication;

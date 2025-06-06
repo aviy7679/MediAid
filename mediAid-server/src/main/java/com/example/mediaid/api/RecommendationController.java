@@ -57,9 +57,9 @@ public class RecommendationController {
             List<String> processedInputs = new ArrayList<>();
 
             // שלב 1: עיבוד טקסט
-            if (text != null &&!text.trim().isEmpty()) {
+            if (text != null && !text.trim().isEmpty()) {
                 logger.info("Processing text data for user: {}", userId);
-                try{
+                try {
                     var textSymptom = symptomAnalysisService.extractSymptomsFromText(text);
                     allExtractedSymptoms.addAll(textSymptom);
                     processedInputs.add("text");
@@ -91,24 +91,25 @@ public class RecommendationController {
 
             // בדיקה אם נמצאו סימפטומים
             if (allExtractedSymptoms.isEmpty()) {
-                return ResponseEntity.ok(Map.of(
-                        "success", true,
-                        "message", "No symptoms detected in the provided data",
-                        "processedInputs", processedInputs,
-                        "extractedSymptoms", allExtractedSymptoms,
-                        "treatmentPlan", null,
-                        "timestamp", System.currentTimeMillis()
-                ));
+                Map<String, Object> emptyResponse = new HashMap<>();
+                emptyResponse.put("success", true);
+                emptyResponse.put("message", "No symptoms detected in the provided data");
+                emptyResponse.put("processedInputs", processedInputs);
+                emptyResponse.put("extractedSymptoms", new ArrayList<>());
+                emptyResponse.put("treatmentPlan", null);
+                emptyResponse.put("timestamp", System.currentTimeMillis());
+
+                return ResponseEntity.ok(emptyResponse);
             }
 
             // שלב 4: ניתוח המצב הרפואי וגיבוש הנחיות טיפול
             TreatmentPlan treatmentPlan;
-            try{
+            try {
                 treatmentPlan = treatmentEngine.analyzeSituation(userId, allExtractedSymptoms);
-                logger.info("Medical analysis competed successfully");
+                logger.info("Medical analysis completed successfully");
             } catch (Exception e) {
                 logger.error("Error in medical analysis: {}", e.getMessage());
-                //תכנית בסיסית ברירת מחדל
+                // תכנית בסיסית ברירת מחדל
                 treatmentPlan = createBasicTreatmentPlan(allExtractedSymptoms);
             }
 
@@ -117,13 +118,28 @@ public class RecommendationController {
             response.put("success", true);
             response.put("analysisType", determineAnalysisType(processedInputs));
             response.put("processedInputs", processedInputs);
-            response.put("originalText", text);
+
+            // הוסף טקסט רק אם קיים
+            if (text != null && !text.trim().isEmpty()) {
+                response.put("originalText", text);
+            }
+
+            // הוסף שם קובץ תמונה רק אם קיים ולא null
             if (imageFile != null && !imageFile.isEmpty()) {
-                response.put("imageFileName", imageFile.getOriginalFilename());
+                String imageFileName = imageFile.getOriginalFilename();
+                if (imageFileName != null && !imageFileName.trim().isEmpty()) {
+                    response.put("imageFileName", imageFileName);
+                }
             }
+
+            // הוסף שם קובץ אודיו רק אם קיים ולא null
             if (audioFile != null && !audioFile.isEmpty()) {
-                response.put("audioFileName", audioFile.getOriginalFilename());
+                String audioFileName = audioFile.getOriginalFilename();
+                if (audioFileName != null && !audioFileName.trim().isEmpty()) {
+                    response.put("audioFileName", audioFileName);
+                }
             }
+
             response.put("extractedSymptoms", new ArrayList<>(allExtractedSymptoms));
             response.put("treatmentPlan", treatmentPlan);
             response.put("timestamp", System.currentTimeMillis());

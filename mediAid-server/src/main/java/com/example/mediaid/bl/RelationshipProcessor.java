@@ -1,6 +1,7 @@
 package com.example.mediaid.bl;
 
 
+import com.example.mediaid.bl.neo4j.DemoMode;
 import com.example.mediaid.bl.neo4j.EntityTypes;
 import com.example.mediaid.bl.neo4j.RelationshipTypes;
 import com.example.mediaid.dal.UMLS_terms.*;

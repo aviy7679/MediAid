@@ -1,4 +1,4 @@
-package com.example.mediaid.bl;
+package com.example.mediaid.bl.neo4j;
 
 import lombok.Data;
 

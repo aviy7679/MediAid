@@ -1,6 +1,6 @@
 package com.example.mediaid.api;
 
-import com.example.mediaid.bl.DemoMode;
+import com.example.mediaid.bl.neo4j.DemoMode;
 import com.example.mediaid.bl.neo4j.DemoRelationshipEnricher;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Session;

@@ -1,6 +1,5 @@
 package com.example.mediaid.dto;
 
-import com.example.mediaid.bl.extract_data_from_EHR.Text_from_image;
 import org.springframework.web.multipart.MultipartFile;
 
 public class DiagnosisData {

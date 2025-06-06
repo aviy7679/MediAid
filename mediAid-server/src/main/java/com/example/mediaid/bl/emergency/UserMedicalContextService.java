@@ -66,6 +66,10 @@ public class UserMedicalContextService {
         }
     }
 
+    public UserMedicalContextService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
 
     //טעינת תרופות פעילות
     private List<UserMedicalEntity> loadActiveMedications(UUID userId) {
