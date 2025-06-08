@@ -31,12 +31,10 @@ public class UserMedicalContextService {
     @Autowired
     private UserDiseaseRepository userDiseaseRepository;
 
-    @Autowired
-    private UserSymptomRepository userSymptomRepository;
 
 
     @Autowired
-    private RiskFactorService riskFactorService; // השירות המעודכן
+    private RiskFactorService riskFactorService;
 
     /**
      * טעינת המידע הרפואי המלא של המשתמש

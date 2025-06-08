@@ -39,14 +39,13 @@ public class TreatmentRecommendationEngine {
     private RiskFactorSer riskFactorSer;
 
     /**
-     * הפונקציה המרכזית - ניתוח מצב רפואי מקיף כולל גורמי סיכון
+     * הפונקציה המרכזית - ניתוח מצב רפואי מקיף
      */
     public TreatmentPlan analyzeSituation(UUID userId, Set<ExtractedSymptom> symptoms) {
-        logger.info("Starting comprehensive medical analysis for user {} with {} symptoms",
-                userId, symptoms.size());
+        logger.info("Starting comprehensive medical analysis for user {} with {} symptoms", userId, symptoms.size());
 
         try {
-            // שלב 1: טעינת המידע הרפואי של המשתמש (כולל גורמי סיכון)
+            // שלב 1: טעינת המידע הרפואי של המשתמש
             UserMedicalContext userContext = medicalContextService.getUserMedicalContext(userId);
             logger.debug("Loaded user medical context: {} medications, {} diseases, {} risk factors",
                     userContext.getCurrentMedications().size(),
@@ -56,7 +55,7 @@ public class TreatmentRecommendationEngine {
             // שלב 2: עדכון גורמי סיכון דינמיים ב-Neo4j
             updateUserRiskFactorsInNeo4j(userId, userContext);
 
-            // שלב 3: חיפוש קשרים רפואיים (כולל גורמי סיכון)
+            // שלב 3: חיפוש קשרים רפואיים
             List<MedicalConnection> allConnections = findAllMedicalConnections(userContext, new ArrayList<>(symptoms));
             logger.info("Found {} medical connections (including risk factors)", allConnections.size());
 
@@ -65,7 +64,7 @@ public class TreatmentRecommendationEngine {
             allConnections.addAll(riskFactorConnections);
             logger.info("Added {} risk factor connections", riskFactorConnections.size());
 
-            // שלב 5: קביעת רמת הדחיפות (כולל השפעת גורמי סיכון)
+            // שלב 5: קביעת רמת הדחיפות
             TreatmentPlan.UrgencyLevel urgencyLevel = calculateUrgencyLevelWithRiskFactors(
                     allConnections, symptoms, userContext);
             logger.info("Calculated urgency level: {} (considering risk factors)", urgencyLevel);
