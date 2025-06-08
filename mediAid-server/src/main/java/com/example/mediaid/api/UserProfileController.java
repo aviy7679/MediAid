@@ -1,7 +1,7 @@
 package com.example.mediaid.api;
 
 import com.example.mediaid.bl.UserService;
-import com.example.mediaid.bl.RiskFactorService;
+import com.example.mediaid.bl.emergency.RiskFactorService;
 import com.example.mediaid.dal.UMLS_terms.Disease;
 import com.example.mediaid.dal.UMLS_terms.DiseaseRepository;
 import com.example.mediaid.dal.UMLS_terms.Medication;

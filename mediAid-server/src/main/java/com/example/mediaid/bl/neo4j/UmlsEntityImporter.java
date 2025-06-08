@@ -7,8 +7,6 @@ import com.example.mediaid.dal.UMLS_terms.Medication;
 import com.example.mediaid.dal.UMLS_terms.MedicationRepository;
 import com.example.mediaid.dal.UMLS_terms.Symptom;
 import com.example.mediaid.dal.UMLS_terms.SymptomRepository;
-import com.example.mediaid.dal.UMLS_terms.RiskFactor;
-import com.example.mediaid.dal.UMLS_terms.RiskFactorRepository;
 import com.example.mediaid.dal.UMLS_terms.Procedure;
 import com.example.mediaid.dal.UMLS_terms.ProcedureRepository;
 import com.example.mediaid.dal.UMLS_terms.AnatomicalStructure;
@@ -18,9 +16,6 @@ import com.example.mediaid.dal.UMLS_terms.LabTestRepository;
 import com.example.mediaid.dal.UMLS_terms.BiologicalFunction;
 import com.example.mediaid.dal.UMLS_terms.BiologicalFunctionRepository;
 
-
-import com.example.mediaid.dal.UMLS_terms.relationships.UmlsRelationship;
-import com.example.mediaid.dal.UMLS_terms.relationships.UmlsRelationshipRepository;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Session;
 import org.slf4j.Logger;
@@ -46,7 +41,6 @@ public class UmlsEntityImporter extends UmlsImporter{
     private final DiseaseRepository diseaseRepository;
     private final MedicationRepository medicationRepository;
     private final SymptomRepository symptomRepository;
-    private final RiskFactorRepository riskFactorRepository;
     private final ProcedureRepository procedureRepository;
     private final AnatomicalStructureRepository anatomicalStructureRepository;
     private final LabTestRepository labTestRepository;
@@ -57,7 +51,6 @@ public class UmlsEntityImporter extends UmlsImporter{
                               DiseaseRepository diseaseRepository,
                               MedicationRepository medicationRepository,
                               SymptomRepository symptomRepository,
-                              RiskFactorRepository riskFactorRepository,
                               ProcedureRepository procedureRepository,
                               AnatomicalStructureRepository anatomicalStructureRepository,
                               LabTestRepository labTestRepository,
@@ -66,13 +59,13 @@ public class UmlsEntityImporter extends UmlsImporter{
         this.diseaseRepository = diseaseRepository;
         this.medicationRepository = medicationRepository;
         this.symptomRepository = symptomRepository;
-        this.riskFactorRepository = riskFactorRepository;
         this.procedureRepository = procedureRepository;
         this.anatomicalStructureRepository = anatomicalStructureRepository;
         this.labTestRepository = labTestRepository;
         this.biologicalFunctionRepository = biologicalFunctionRepository;
     }
 
+    //ייבוא כל הישויות מהפוסטרגס ל-NEO4J
     public void importAllEntitiesFromDB(){
         logger.info("Start importing all entities from PostGreSQL");
         try{
@@ -80,7 +73,6 @@ public class UmlsEntityImporter extends UmlsImporter{
                     new EntityImportConfig<>("Diseases",diseaseRepository, EntityTypes.DISEASE, this::mapDisease),
                     new EntityImportConfig<>("Medications", medicationRepository, EntityTypes.MEDICATION, this::mapMedication),
                     new EntityImportConfig<>("Symptoms", symptomRepository, EntityTypes.SYMPTOM, this::mapSymptom),
-                    new EntityImportConfig<>("Risk factors", riskFactorRepository, EntityTypes.RISK_FACTOR,this::mapRiskFactor),
                     new EntityImportConfig<>("Procedures", procedureRepository, EntityTypes.PROCEDURE, this::mapProcedure),
                     new EntityImportConfig<>("Anatomical Structures", anatomicalStructureRepository, EntityTypes.ANATOMICAL_STRUCTURE, this::mapAnatomicalStructure),
                     new EntityImportConfig<>("Lab Tests", labTestRepository, EntityTypes.LABORATORY_TEST, this::mapLabTest),
@@ -119,6 +111,7 @@ public class UmlsEntityImporter extends UmlsImporter{
 
         Page<T> page;
         do{
+            //דפדוף לחיסכון בזיכרון
             Pageable pageable = PageRequest.of(pageNumber, PAGE_SIZE);
             page = config.repository.findAll(pageable);
 
@@ -156,8 +149,10 @@ public class UmlsEntityImporter extends UmlsImporter{
 
                     StringBuilder queryBuilder = new StringBuilder();
                     queryBuilder.append("MERGE (n:").append(entityType).append(" {cui: $cui}) ");
+                    // אם צומת חדשה
                     queryBuilder.append("ON CREATE SET n.name = $name");
 
+                    //ערכים נוספים אם מוגדרים
                     for (String key : entity.keySet()) {
                         if (!key.equals("cui") && !key.equals("name") && !key.equals("type")) {
                             queryBuilder.append(", n.").append(key).append(" = $").append(key);
@@ -211,14 +206,6 @@ public class UmlsEntityImporter extends UmlsImporter{
         return entity;
     }
 
-    private Map<String, Object> mapRiskFactor(RiskFactor riskFactor) {
-        Map<String, Object> entity = new HashMap<>();
-        entity.put("cui", riskFactor.getCui());
-        entity.put("name", riskFactor.getName());
-        entity.put("type", EntityTypes.RISK_FACTOR);
-
-        return entity;
-    }
 
     private Map<String, Object> mapProcedure(Procedure procedure) {
         Map<String, Object> entity = new HashMap<>();
@@ -228,6 +215,7 @@ public class UmlsEntityImporter extends UmlsImporter{
 
         return entity;
     }
+
     private Map<String, Object> mapAnatomicalStructure(AnatomicalStructure anatomicalStructure) {
         Map<String, Object> entity = new HashMap<>();
         entity.put("cui", anatomicalStructure.getCui());
@@ -268,6 +256,7 @@ public class UmlsEntityImporter extends UmlsImporter{
 
                 for (String entityType : entityTypes) {
                     var result = tx.run("MATCH (n:" + entityType + ") RETURN count(n) as count");
+                    //אם יש לפחות רשומה אחת בתוצאה
                     if (result.hasNext()) {
                         long count = result.next().get("count").asLong();
                         if (count > 0) {
@@ -312,192 +301,8 @@ public class UmlsEntityImporter extends UmlsImporter{
             this.mapper = mapper;
         }
     }
-    @Autowired
-    private UmlsRelationshipRepository relationshipRepository;
 
-    public void importRelationshipsFromDB() {
-        logger.info("Starting relationship import from PostgreSQL to Neo4j");
-
-        long totalRelationships = relationshipRepository.count();
-        logger.info("Total relationships to import: {}", totalRelationships);
-
-        if (totalRelationships == 0) {
-            logger.info("No relationships found in PostgreSQL");
-            return;
-        }
-
-        int pageNumber = 0;
-        int importedCount = 0;
-        List<Map<String, Object>> batch = new ArrayList<>();
-
-        Page<UmlsRelationship> page;
-        do {
-            Pageable pageable = PageRequest.of(pageNumber, PAGE_SIZE);
-            page = relationshipRepository.findAll(pageable);
-
-            for (UmlsRelationship rel : page.getContent()) {
-                Map<String, Object> relationshipData = new HashMap<>();
-                relationshipData.put("cui1", rel.getCui1());
-                relationshipData.put("cui2", rel.getCui2());
-                relationshipData.put("relType", rel.getRelationshipType());
-                relationshipData.put("weight", rel.getWeight());
-                relationshipData.put("source", rel.getSource());
-
-                batch.add(relationshipData);
-                importedCount++;
-
-                if (batch.size() >= BATCH_SIZE) {
-                    createRelationshipsBatch(batch);
-                    batch.clear();
-                    logger.info("Imported {} relationships from {}", importedCount, totalRelationships);
-                }
-            }
-            pageNumber++;
-        } while (page.hasNext());
-
-        if (!batch.isEmpty()) {
-            createRelationshipsBatch(batch);
-        }
-
-        logger.info("Completed importing {} relationships to Neo4j", importedCount);
-    }
-
-//    private void createRelationshipsBatch(List<Map<String, Object>> relationships) {
-//        try (Session session = neo4jDriver.session()) {
-//            session.writeTransaction(tx -> {
-//                int successCount = 0;
-//                for (Map<String, Object> rel : relationships) {
-//                    try {
-//                        String query = "MATCH (n1), (n2) " +
-//                                "WHERE n1.cui = $cui1 AND n2.cui = $cui2 " +
-//                                "CREATE (n1)-[r:" + rel.get("relType") + " {" +
-//                                "weight: $weight, source: $source}]->(n2) " +
-//                                "RETURN 1 as created";
-//
-//                        var result = tx.run(query, rel);
-//                        if (result.hasNext()) {
-//                            successCount++;
-//                        }
-//                    } catch (Exception e) {
-//                        logger.debug("Failed to create relationship '{}' -[{}]-> '{}': {}",
-//                                rel.get("cui1"), rel.get("relType"), rel.get("cui2"), e.getMessage());
-//                    }
-//                }
-//                logger.debug("Successfully created {} relationships in batch", successCount);
-//                return null;
-//            });
-//        } catch (Exception e) {
-//            logger.error("Error creating relationship batch: {}", e.getMessage());
-//        }
-//    }
-
-    private void createRelationshipsBatch(List<Map<String, Object>> relationships) {
-        if (relationships.isEmpty()) {
-            return;
-        }
-
-        logger.info("🔄 Creating batch of {} relationships in Neo4j...", relationships.size());
-
-        try (Session session = neo4jDriver.session()) {
-            session.writeTransaction(tx -> {
-                int successCount = 0;
-                int errorCount = 0;
-
-                for (Map<String, Object> rel : relationships) {
-                    try {
-                        String cui1 = (String) rel.get("cui1");
-                        String cui2 = (String) rel.get("cui2");
-                        String relType = (String) rel.get("relType");
-                        Double weight = (Double) rel.get("weight");
-                        String source = (String) rel.get("source");
-
-                        // שאילתה פשוטה עם timeout
-                        String query = "MATCH (n1 {cui: $cui1}), (n2 {cui: $cui2}) " +
-                                "CREATE (n1)-[:" + relType + " {weight: $weight, source: $source}]->(n2)";
-
-                        tx.run(query, Map.of(
-                                "cui1", cui1,
-                                "cui2", cui2,
-                                "weight", weight != null ? weight : 0.5,
-                                "source", source != null ? source : "UMLS"
-                        ));
-
-                        successCount++;
-
-                        // הדפס התקדמות כל 100 קשרים
-                        if (successCount % 100 == 0) {
-                            logger.debug("Created {} relationships so far...", successCount);
-                        }
-
-                    } catch (Exception e) {
-                        errorCount++;
-                        if (errorCount <= 5) { // הדפס רק 5 שגיאות ראשונות
-                            logger.debug("Failed to create relationship: {}", e.getMessage());
-                        }
-                    }
-                }
-
-                logger.info("✅ Batch completed: {} successful, {} errors", successCount, errorCount);
-                return null;
-            });
-
-        } catch (Exception e) {
-            logger.error("❌ Critical error in batch creation: {}", e.getMessage());
-            // אל תזרוק חריגה - רק תתעד ותמשיך
-        }
-    }
-    public Map<String, Long> getRelationshipStatistics() {
-        Map<String, Long> stats = new HashMap<>();
-
-        try (Session session = neo4jDriver.session()) {
-            session.readTransaction(tx -> {
-                String[] relationshipTypes = {
-                        RelationshipTypes.TREATS,
-                        RelationshipTypes.INDICATES,
-                        RelationshipTypes.HAS_SYMPTOM,
-                        RelationshipTypes.CONTRAINDICATED_FOR,
-                        RelationshipTypes.INTERACTS_WITH,
-                        RelationshipTypes.SIDE_EFFECT_OF,
-                        RelationshipTypes.CAUSES_SIDE_EFFECT,
-                        RelationshipTypes.MAY_PREVENT,
-                        RelationshipTypes.COMPLICATION_OF,
-                        RelationshipTypes.AGGRAVATES,
-                        RelationshipTypes.RISK_FACTOR_FOR,
-                        RelationshipTypes.INCREASES_RISK_OF,
-                        RelationshipTypes.DIAGNOSED_BY,
-                        RelationshipTypes.DIAGNOSES,
-                        RelationshipTypes.PRECEDES,
-                        RelationshipTypes.LOCATED_IN,
-                        RelationshipTypes.INHIBITS,
-                        RelationshipTypes.STIMULATES
-                };
-
-                for (String relType : relationshipTypes) {
-                    try {
-                        var result = tx.run("MATCH ()-[r:" + relType + "]->() RETURN COUNT(r) as count");
-                        if (result.hasNext()) {
-                            long count = result.next().get("count").asLong();
-                            if (count > 0) {
-                                stats.put(relType, count);
-                            }
-                        }
-                    } catch (Exception e) {
-                        logger.warn("Error counting relationships of type {}: {}", relType, e.getMessage());
-                    }
-                }
-
-                var totalResult = tx.run("MATCH ()-[r]->() RETURN COUNT(r) as total");
-                if (totalResult.hasNext()) {
-                    long total = totalResult.next().get("total").asLong();
-                    stats.put("TOTAL_RELATIONSHIPS", total);
-                }
-
-                return null;
-            });
-        }
-
-        return stats;
-    }
+    //למצב דמו
     public void importDemoEntitiesFromDB() {
         if (!DemoMode.MODE) {
             logger.info("Not in demo mode - importing all entities");

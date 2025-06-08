@@ -1,5 +1,6 @@
 package com.example.mediaid.bl.neo4j;
 
+import com.example.mediaid.bl.emergency.RiskFactorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,7 +12,7 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 
 /**
- * רכיב המריץ את תהליך ייבוא הנתונים הרפואיים
+ * רכיב  המריץ את תהליך ייבוא הנתונים הרפואיים
  */
 @Component
 public class DataImportRunner {
@@ -20,28 +21,30 @@ public class DataImportRunner {
 
     private final UmlsEntityImporter entityImporter;
     private final UmlsRelationshipImporter relationshipImporter;
-    private final RiskFactorSer riskFactorService;
+    private final RiskFactorSer riskFactorSer; // שונה מ-riskFactorService
+    private final RiskFactorService riskFactorService; // שירות PostgreSQL
     private final Environment environment;
 
     @Autowired
     public DataImportRunner(
             UmlsEntityImporter entityImporter,
             UmlsRelationshipImporter relationshipImporter,
-            RiskFactorSer riskFactorService,
+            RiskFactorSer riskFactorSer,
+            RiskFactorService riskFactorService,
             Environment environment) {
 
         this.entityImporter = entityImporter;
         this.relationshipImporter = relationshipImporter;
+        this.riskFactorSer = riskFactorSer;
         this.riskFactorService = riskFactorService;
         this.environment = environment;
     }
 
     /**
-     * נקודת כניסה עיקרית לתהליך הייבוא
+     * נקודת כניסה עיקרית לתהליך הייבוא המלא
      */
     @EventListener(ApplicationReadyEvent.class)
     public void runDataImport() {
-        // קריאת הגדרות התצורה - Reading configuration settings
         boolean importEnabled = Boolean.parseBoolean(
                 environment.getProperty("mediaid.data.import.enabled", "false"));
 
@@ -56,9 +59,9 @@ public class DataImportRunner {
 
         if (importEnabled) {
             try {
-                logger.info("=== Starting MedicalAid System Data Import ===");
+                logger.info("=== Starting MediAid System Data Import with Risk Factors ===");
 
-                // הצגת מצב Demo - Display Demo mode status
+                // הצגת מצב Demo
                 logger.info("Demo mode status: {}", DemoMode.getDemoStats());
 
                 // שלב 1: ייבוא ישויות מ-PostgreSQL ל-Neo4j
@@ -94,11 +97,6 @@ public class DataImportRunner {
                         // ייבוא ישיר מ-MRREL ל- Neo4j
                         relationshipImporter.importRelationships(mrrelPath);
 
-                        // הצגת סטטיסטיקות קשרים
-                        Map<String, Long> relStats = entityImporter.getRelationshipStatistics();
-                        logger.info("Relationship import statistics:");
-                        relStats.forEach((type, count) ->
-                                logger.info("  {}: {} relationships", type, count));
                     } else {
                         logger.warn("MRREL file path not configured - skipping relationship import");
                         logger.info("To enable relationship import, set mediaid.umls.mrrel.path in application.properties");
@@ -107,14 +105,14 @@ public class DataImportRunner {
                     logger.info("Relationship import disabled");
                 }
 
-                // שלב 3: אתחול גורמי סיכון בסיסיים
+                // שלב 3: אתחול גורמי סיכון מקיפים
                 if (initializeRiskFactors) {
-                    logger.info("Starting basic risk factors initialization");
-                    initializeBasicRiskFactors();
+                    logger.info("Starting comprehensive risk factors initialization");
+                    initializeComprehensiveRiskFactors();
                 }
 
                 logger.info("=== Data import completed successfully ===");
-                printFinalSummary();
+                printFinalSummaryWithRiskFactors();
 
             } catch (Exception e) {
                 logger.error("Critical error in data import: {}", e.getMessage(), e);
@@ -128,32 +126,38 @@ public class DataImportRunner {
     }
 
     /**
-     * אתחול גורמי סיכון בסיסיים במערכת
+     * אתחול מקיף של גורמי סיכון במערכת
      */
-    private void initializeBasicRiskFactors() {
+    private void initializeComprehensiveRiskFactors() {
         try {
-            logger.info("Creating basic risk factors in Neo4j");
+            logger.info("Creating comprehensive risk factors in Neo4j");
 
-            // יצירת גורמי סיכון עיקריים
-            createRiskFactor("AGE", 40, "Age risk factor");
-            createRiskFactor("BMI", 25, "Body Mass Index risk factor");
-            createRiskFactor("BLOOD_PRESSURE_SYSTOLIC", 120, "Systolic blood pressure risk factor");
-            createRiskFactor("BLOOD_GLUCOSE", 100, "Blood glucose level risk factor");
+            // גורמי סיכון דינמיים עיקריים
+            createRiskFactor("AGE", 45, "Age-related health risks");
+            createRiskFactor("BMI", 25, "Body Mass Index health indicator");
+            createRiskFactor("BLOOD_PRESSURE_SYSTOLIC", 120, "Systolic blood pressure reading");
+            createRiskFactor("BLOOD_GLUCOSE", 100, "Blood glucose level indicator");
+            createRiskFactor("SMOKING_SCORE", 0, "Smoking habit severity score");
 
-            logger.info("Risk factors initialization completed successfully");
+            // גורמי סיכון נוספים למצב מתקדם
+            createRiskFactor("CHOLESTEROL_TOTAL", 200, "Total cholesterol level");
+            createRiskFactor("HEART_RATE_RESTING", 70, "Resting heart rate");
+            createRiskFactor("STRESS_LEVEL_SCORE", 3, "Psychological stress level");
+
+            logger.info("Comprehensive risk factors initialization completed successfully");
 
         } catch (Exception e) {
-            logger.error("Error in risk factors initialization: {}", e.getMessage(), e);
+            logger.error("Error in comprehensive risk factors initialization: {}", e.getMessage(), e);
         }
     }
 
     /**
-     * יצירת גורם סיכון בודד
+     * יצירת גורם סיכון בודד עם קשרים
      */
     private void createRiskFactor(String type, double value, String description) {
         try {
-            long nodeId = riskFactorService.createOrUpdateRiskFactor(type, value);
-            riskFactorService.updateRiskFactorRelationships(type, value);
+            long nodeId = riskFactorSer.createOrUpdateRiskFactor(type, value);
+            riskFactorSer.updateRiskFactorRelationships(type, value);
             logger.debug("Created {} risk factor with ID: {} ({})", type, nodeId, description);
         } catch (Exception e) {
             logger.warn("Failed to create risk factor {}: {}", type, e.getMessage());
@@ -163,19 +167,33 @@ public class DataImportRunner {
     /**
      * הצגת סיכום מערכת מפורט
      */
-    private void printFinalSummary() {
+    private void printFinalSummaryWithRiskFactors() {
         try {
-            logger.info("\n=== System Status Summary ===");
+            logger.info("\n=== Comprehensive System Status Summary ===");
 
-            // סטטיסטיקות ישויות - Entity statistics
+            // סטטיסטיקות ישויות
             Map<String, Long> entityStats = entityImporter.getImportStatistics();
             long totalEntities = entityStats.values().stream().mapToLong(Long::longValue).sum();
             logger.info("Total entities in graph: {}", totalEntities);
 
-            // סטטיסטיקות קשרים - Relationship statistics
-            Map<String, Long> relationshipStats = entityImporter.getRelationshipStatistics();
-            long totalRelationships = relationshipStats.getOrDefault("TOTAL_RELATIONSHIPS", 0L);
-            logger.info("Total relationships in graph: {}", totalRelationships);
+
+            // סטטיסטיקות גורמי סיכון
+            try {
+                Map<String, Object> riskFactorStats = riskFactorSer.getRiskFactorStatistics();
+                logger.info("Risk Factor System Status:");
+                logger.info("  Neo4j risk factors: {}", riskFactorStats.getOrDefault("total_risk_factors", 0));
+                logger.info("  Risk relationships: {}", riskFactorStats.getOrDefault("total_risk_relationships", 0));
+
+                @SuppressWarnings("unchecked")   //המרה לא בטוחה
+                Map<String, Object> riskFactorsByType = (Map<String, Object>) riskFactorStats.get("risk_factors_by_type");
+                if (riskFactorsByType != null && !riskFactorsByType.isEmpty()) {
+                    logger.info("  Active risk factors:");
+                    riskFactorsByType.forEach((type, value) ->
+                            logger.info("    {}: {}", type, value));
+                }
+            } catch (Exception e) {
+                logger.warn("Could not retrieve risk factor statistics: {}", e.getMessage());
+            }
 
             if (totalEntities > 0) {
                 logger.info("\nEntity breakdown:");
@@ -183,56 +201,17 @@ public class DataImportRunner {
                         logger.info("  {}: {}", String.format("%-20s", type), String.format("%,d", count)));
             }
 
-            if (totalRelationships > 0) {
-                logger.info("\nRelationship breakdown:");
-                relationshipStats.entrySet().stream()
-                        .filter(entry -> !entry.getKey().equals("TOTAL_RELATIONSHIPS"))
-                        .limit(10) // הצגת 10 סוגי קשרים מובילים - Show top 10 relationship types
-                        .forEach(entry -> logger.info("  {}: {}",
-                                String.format("%-25s", entry.getKey()),
-                                String.format("%,d", entry.getValue())));
-
-                if (relationshipStats.size() > 11) { // יותר מ-10 + TOTAL
-                    logger.info("  ... and {} more relationship types", relationshipStats.size() - 11);
-                }
-            }
-
-            // בדיקת תקינות המערכת
-            String healthStatus = determineSystemHealth(totalEntities, totalRelationships);
-            logger.info("\nSystem health: {}", healthStatus);
-
-            logger.info("\n{}", "=".repeat(50));
-            logger.info("MedicalAid system is ready for use");
-            logger.info("API endpoints available at: http://localhost:8080/");
-            logger.info("{}", "=".repeat(50));
-
         } catch (Exception e) {
-            logger.error("Error generating system summary: {}", e.getMessage(), e);
+            logger.error("Error generating comprehensive system summary: {}", e.getMessage(), e);
         }
     }
 
-    /**
-     * קביעת מצב בריאות המערכת
-     */
-    private String determineSystemHealth(long totalEntities, long totalRelationships) {
-        if (totalEntities == 0) {
-            return "WARNING - No entities found in graph";
-        } else if (totalRelationships == 0) {
-            return "WARNING - No relationships found in graph";
-        } else if (totalEntities < 1000) {
-            return "LIMITED - Basic entities available";
-        } else if (totalRelationships < 1000) {
-            return "LIMITED - Entities available, minimal relationships";
-        } else {
-            return "HEALTHY - Full system operational";
-        }
-    }
 
     /**
-     * הפעלה ידנית של תהליך הייבוא
+     * הפעלה ידנית של תהליך הייבוא המקיף
      */
-    public void manualDataImport() {
-        logger.info("Starting manual import process");
+    public void manualComprehensiveDataImport() {
+        logger.info("Starting manual comprehensive import process");
 
         try {
             entityImporter.importAllEntitiesFromDB();
@@ -242,43 +221,12 @@ public class DataImportRunner {
                 relationshipImporter.importRelationships(mrrelPath);
             }
 
-            initializeBasicRiskFactors();
-            logger.info("Manual import completed successfully");
+            initializeComprehensiveRiskFactors();
+            logger.info("Manual comprehensive import completed successfully");
         } catch (Exception e) {
-            logger.error("Error in manual import: {}", e.getMessage(), e);
+            logger.error("Error in manual comprehensive import: {}", e.getMessage(), e);
         }
     }
 
-    /**
-     * קבלת מצב המערכת הנוכחי
-     */
-    public Map<String, Object> getSystemStatus() {
-        Map<String, Object> status = new java.util.HashMap<>();
 
-        try {
-            Map<String, Long> entityStats = entityImporter.getImportStatistics();
-            status.put("entities", entityStats);
-
-            Map<String, Long> relationshipStats = entityImporter.getRelationshipStatistics();
-            status.put("relationships", relationshipStats);
-
-            long totalEntities = entityStats.values().stream().mapToLong(Long::longValue).sum();
-            status.put("total_entities", totalEntities);
-
-            long totalRelationships = relationshipStats.values().stream().mapToLong(Long::longValue).sum();
-            status.put("total_relationships", totalRelationships);
-
-            status.put("health_status", determineSystemHealth(totalEntities, totalRelationships));
-            status.put("demo_mode", DemoMode.MODE);
-            status.put("status", "operational");
-            status.put("timestamp", System.currentTimeMillis());
-
-        } catch (Exception e) {
-            status.put("status", "error");
-            status.put("error", e.getMessage());
-            status.put("timestamp", System.currentTimeMillis());
-        }
-
-        return status;
-    }
 }

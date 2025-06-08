@@ -101,34 +101,7 @@ public class SymptomAnalysisService {
             return new ArrayList<>();
         }
     }
-    //חילוץ תמונה+טקסט
-    public List<ExtractedSymptom> extractedSymptomsFromTextAndImage(String text, byte[] image){
-        logger.info("Extracting symptoms from text and image");
 
-        List<ExtractedSymptom> allSymptoms = new ArrayList<>();
-
-        //טקסט
-        if(text!=null && !text.trim().isEmpty()){
-            List<ExtractedSymptom> textSymptoms = extractSymptomsFromText(text);
-            textSymptoms.forEach(symptom -> symptom.setSource("text"));
-            allSymptoms.addAll(textSymptoms);
-            logger.info("Found {} symptoms from text", allSymptoms.size());
-        }
-
-        //תמונה
-        if(image!=null && image.length>0){
-            List<ExtractedSymptom> imageSymptoms = extractedSymptomsFromImage(image);
-            imageSymptoms.forEach(symptom -> symptom.setSource("image"));
-            allSymptoms.addAll(imageSymptoms);
-            logger.info("Found {} symptoms from image", allSymptoms.size());
-        }
-
-        //הסרת כפילויות
-        List<ExtractedSymptom> uniqueSymptoms = removeDuplicateSymptoms(allSymptoms);
-        logger.info("Found {} unique symptoms", uniqueSymptoms.size());
-
-        return uniqueSymptoms;
-    }
 
     //בדיקת תקינות השרת - פייתון
     public boolean checkPythonServerHealth() {
@@ -151,44 +124,7 @@ public class SymptomAnalysisService {
         }
     }
 
-    /**
-     * הסרת כפילויות - אם אותו CUI נמצא גם בטקסט וגם בתמונה, נשמור את זה עם הביטחון הגבוה יותר
-     */
-    private List<ExtractedSymptom> removeDuplicateSymptoms(List<ExtractedSymptom> symptoms) {
-        Map<String, ExtractedSymptom> uniqueSymptoms = new HashMap<>();
-
-        for (ExtractedSymptom symptom : symptoms) {
-            String cui = symptom.getCui();
-
-            if (cui == null || cui.isEmpty()) {
-                continue; // דלג על סימפטומים ללא CUI
-            }
-
-            ExtractedSymptom existing = uniqueSymptoms.get(cui);
-
-            if (existing == null) {
-                // סימפטום חדש
-                uniqueSymptoms.put(cui, symptom);
-            } else {
-                // כבר קיים - בחר את זה עם הביטחון הגבוה יותר
-                if (symptom.getConfidence() > existing.getConfidence()) {
-                    // עדכן מקור לשילוב אם זה מגיע ממקורות שונים
-                    if (!existing.getSource().equals(symptom.getSource())) {
-                        symptom.setSource(existing.getSource() + "+" + symptom.getSource());
-                    }
-                    uniqueSymptoms.put(cui, symptom);
-                } else if (!existing.getSource().equals(symptom.getSource())) {
-                    // עדכן מקור בסימפטום הקיים
-                    existing.setSource(existing.getSource() + "+" + symptom.getSource());
-                }
-            }
-        }
-
-        return new ArrayList<>(uniqueSymptoms.values());
-    }
-
-
-
+    //תרגום התשובה לאובייקט
     private List<ExtractedSymptom> parseSymptoms (String jsonResponse, boolean isText){
         List<ExtractedSymptom> symptoms = new ArrayList<>();
 
@@ -236,32 +172,6 @@ public class SymptomAnalysisService {
             logger.error("Failed to parse {} symptoms: {}",sourceType,e.getMessage(), e);
         }
         return symptoms;
-    }
-
-    /**
-     * קבלת סטטיסטיקות על ניתוח הסימפטומים
-     */
-    public Map<String, Object> getAnalysisStatistics() {
-        Map<String, Object> stats = new HashMap<>();
-
-        try {
-            String url = pythonServerUrl + "/status";
-            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
-
-            if (response.getStatusCode() == HttpStatus.OK) {
-                JsonNode statusResponse = objectMapper.readTree(response.getBody());
-                stats.put("python_server_status", statusResponse);
-            }
-
-        } catch (Exception e) {
-            logger.error("Error getting analysis statistics: {}", e.getMessage());
-            stats.put("error", e.getMessage());
-        }
-
-        stats.put("server_url", pythonServerUrl);
-        stats.put("timeout_ms", timeoutMs);
-
-        return stats;
     }
 
 }

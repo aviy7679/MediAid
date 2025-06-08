@@ -20,7 +20,7 @@ public class UmlsRelationshipImporter extends UmlsImporter {
 
     private static final Logger logger = LoggerFactory.getLogger(UmlsRelationshipImporter.class);
 
-    // סטים של CUI עבור כל סוג ישות - CUI sets for each entity type
+    // סטים של CUI עבור כל סוג ישות
     private Set<String> diseaseCuis = new HashSet<>();
     private Set<String> medicationCuis = new HashSet<>();
     private Set<String> symptomCuis = new HashSet<>();
@@ -43,11 +43,11 @@ public class UmlsRelationshipImporter extends UmlsImporter {
         logger.info("MRREL file path: {}", mrrelPath);
 
         try {
-            // שלב הכנה - Preparation phase
+            // שלב הכנה
             loadAllCuisFromGraph();
             ensureIndexesExist();
 
-            // שלב ייבוא - Import phase
+            // שלב ייבוא
             importRelationshipsFromMrrel(mrrelPath);
 
             logger.info(ImportConstants.Messages.IMPORT_COMPLETED);
@@ -64,15 +64,12 @@ public class UmlsRelationshipImporter extends UmlsImporter {
     private void importRelationshipsFromMrrel(String mrrelPath) throws IOException {
         logger.info("Processing MRREL file for relationship extraction");
 
-        // הגדרת משתני מעקב - Setup tracking variables
+        // הגדרת משתני מעקב
         RelationshipImportTracker tracker = new RelationshipImportTracker();
         List<Map<String, Object>> relationshipBatch = new ArrayList<>();
         Set<String> existingRelationships = loadExistingRelationships();
 
         logger.info("Loaded {} existing relationships to prevent duplicates", existingRelationships.size());
-
-        // ניתוח ראשוני של הקובץ - Preliminary file analysis
-        analyzeFileStructure(mrrelPath);
 
         try (BufferedReader reader = new BufferedReader(new FileReader(mrrelPath))) {
             String line;
@@ -94,7 +91,7 @@ public class UmlsRelationshipImporter extends UmlsImporter {
                     tracker.acceptedRelationships++;
                     existingRelationships.add(candidate.getRelationshipKey());
 
-                    // יצירת אצווה כשמגיעים לגודל המטרה - Create batch when reaching target size
+                    // יצירת אצווה כשמגיעים לגודל המטרה
                     if (relationshipBatch.size() >= ImportConstants.RELATIONSHIP_BATCH_SIZE) {
                         int created = createRelationshipsBatch(relationshipBatch);
                         tracker.totalCreated += created;
@@ -349,47 +346,6 @@ public class UmlsRelationshipImporter extends UmlsImporter {
     }
 
     /**
-     * ניתוח מבנה הקובץ לפני העיבוד
-     */
-    private void analyzeFileStructure(String mrrelPath) {
-        logger.info(ImportConstants.Messages.ANALYZING_FILE);
-
-        Map<String, Integer> sourceCount = new HashMap<>();
-        Map<String, Integer> relCount = new HashMap<>();
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(mrrelPath))) {
-            String line;
-            int analyzed = 0;
-
-            while ((line = reader.readLine()) != null && analyzed < ImportConstants.ANALYSIS_MAX_LINES) {
-                String[] fields = line.split("\\|");
-                if (fields.length >= ImportConstants.MIN_MRREL_FIELDS) {
-                    String rel = fields[3];
-                    String sab = fields[10];
-
-                    sourceCount.put(sab, sourceCount.getOrDefault(sab, 0) + 1);
-                    relCount.put(rel, relCount.getOrDefault(rel, 0) + 1);
-                }
-                analyzed++;
-            }
-
-            logger.info("File analysis completed - {} lines analyzed", analyzed);
-            logger.info("Found {} unique sources", sourceCount.size());
-            logger.info("Found {} unique relationship types", relCount.size());
-
-            // הצגת מקורות מובילים
-            sourceCount.entrySet().stream()
-                    .sorted((e1, e2) -> e2.getValue().compareTo(e1.getValue()))
-                    .limit(5)
-                    .forEach(entry -> logger.debug("Top source: {} with {} occurrences",
-                            entry.getKey(), entry.getValue()));
-
-        } catch (IOException e) {
-            logger.warn("Could not analyze file structure: {}", e.getMessage());
-        }
-    }
-
-    /**
      * טעינת כל ה-CUI מהגרף
      */
     private void loadAllCuisFromGraph() {
@@ -428,7 +384,6 @@ public class UmlsRelationshipImporter extends UmlsImporter {
 
     /**
      * טעינת CUI עבור סוג ישות מסוים
-     * Load CUIs for specific entity type
      */
     private Set<String> loadCuisForType(Session session, String entityType) {
         return new HashSet<>(
@@ -501,6 +456,7 @@ public class UmlsRelationshipImporter extends UmlsImporter {
                                 "LIMIT 500000"
                 );
 
+                //יצירת מחרוזת שמבטאת את הקשר
                 result.forEachRemaining(record -> {
                     String cui1 = record.get("cui1").asString();
                     String cui2 = record.get("cui2").asString();
@@ -518,7 +474,7 @@ public class UmlsRelationshipImporter extends UmlsImporter {
     }
 
     /**
-     * יצירת מפתח ייחודי לקשר
+     * יצירת מפתח ייחודי לקשר לבדיקת כפילויות
      */
     private String createRelationshipKey(String cui1, String cui2, String relType) {
         return cui1 + "|" + relType + "|" + cui2;
@@ -617,73 +573,4 @@ public class UmlsRelationshipImporter extends UmlsImporter {
         }
     }
 
-    // =============== פונקציות לצורכי API ===============
-
-    /**
-     * ניתוח מצב הגרף הנוכחי
-     */
-    public Map<String, Object> analyzeCurrentGraph() {
-        Map<String, Object> analysis = new HashMap<>();
-
-        try (Session session = neo4jDriver.session()) {
-            session.readTransaction(tx -> {
-                // ספירת קשרים כוללת - Total relationship count
-                var totalResult = tx.run("MATCH ()-[r]->() RETURN count(r) as total");
-                if (totalResult.hasNext()) {
-                    analysis.put("total_relationships", totalResult.next().get("total").asLong());
-                }
-
-                // ספירת צמתים - Node count
-                var nodesResult = tx.run("MATCH (n) RETURN count(n) as total");
-                if (nodesResult.hasNext()) {
-                    analysis.put("total_nodes", nodesResult.next().get("total").asLong());
-                }
-
-                // ספירת לולאות עצמיות - Self-loops count
-                var selfLoopsResult = tx.run("MATCH (n)-[r]->(n) RETURN count(r) as total");
-                if (selfLoopsResult.hasNext()) {
-                    analysis.put("self_loops_count", selfLoopsResult.next().get("total").asLong());
-                }
-
-                return null;
-            });
-
-            analysis.put("analysis_timestamp", System.currentTimeMillis());
-            logger.info("Graph analysis completed");
-
-        } catch (Exception e) {
-            logger.error("Error analyzing graph: {}", e.getMessage());
-            analysis.put("error", e.getMessage());
-        }
-
-        return analysis;
-    }
-
-    /**
-     * ניקוי לולאות עצמיות
-     */
-    public int cleanSelfLoops() {
-        logger.info(ImportConstants.Messages.CLEANUP_STARTED + " - self-loops");
-
-        try (Session session = neo4jDriver.session()) {
-            return session.writeTransaction(tx -> {
-                var countResult = tx.run("MATCH (n)-[r]->(n) RETURN count(r) as total");
-                int totalSelfLoops = countResult.hasNext() ?
-                        (int) countResult.next().get("total").asLong() : 0;
-
-                if (totalSelfLoops > 0) {
-                    tx.run("MATCH (n)-[r]->(n) DELETE r");
-                    logger.info("Cleaned {} self-loops from graph", totalSelfLoops);
-                } else {
-                    logger.info("No self-loops found in graph");
-                }
-
-                return totalSelfLoops;
-            });
-
-        } catch (Exception e) {
-            logger.error("Error cleaning self-loops: {}", e.getMessage());
-            return 0;
-        }
-    }
 }

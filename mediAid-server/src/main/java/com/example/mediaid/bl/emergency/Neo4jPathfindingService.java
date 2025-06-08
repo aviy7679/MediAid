@@ -15,7 +15,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 //מסלולים ושאילתות neo4j
 @Service
 public class Neo4jPathfindingService {
@@ -27,7 +26,7 @@ public class Neo4jPathfindingService {
 
 //    קשר בין תרופות לבין סימפטומים של המשתמש
     public List<MedicalConnection> findMedicationSideEffects(List<UserMedicalEntity> medications, List<ExtractedSymptom> symptoms) {
-        //רשימה שכל הובייקט בה הוא בעצם קשר בין תרופה לסימפטום
+        //רשימה שכל אובייקט בה הוא בעצם קשר בין תרופה לסימפטום
         List<MedicalConnection> connections = new ArrayList<>();
 
         try(Session session = neo4jDriver.session()) {
@@ -158,9 +157,9 @@ public class Neo4jPathfindingService {
         List<Map<String, Object>> paths = new ArrayList<>();
 
         try (Session session = neo4jDriver.session()) {
-            // מסלול: תרופה → תופעת לוואי → סימפטום → טיפול אפשרי
+            // מסלול: תרופה -> תופעת לוואי -> סימפטום -> טיפול אפשרי
             String pathQuery = """
-                MATCH path = (source)-[r1]->(symptom:Symptom {cui: $sympCui})-[r2:INDICATES]->(disease)-[r3:TREATED_BY]->(treatment)
+                MATCH path = (source)-[r1]->(symptom:Symptom {cui: $sympCui})<-[r2:CAUSES_SYMPTOM]-(disease)<-[r3:TREATS]-(treatment)
                 WHERE source.cui = $sourceCui
                 RETURN path, 
                        source.name as sourceName, 
