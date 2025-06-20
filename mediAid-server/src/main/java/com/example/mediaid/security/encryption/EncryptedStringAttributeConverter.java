@@ -2,10 +2,12 @@ package com.example.mediaid.security.encryption;
 
 import com.example.mediaid.utils.EncryptionProperties;
 import jakarta.persistence.AttributeConverter;
+import jakarta.persistence.Converter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
+@Converter
 public class EncryptedStringAttributeConverter implements AttributeConverter<String, String> {
 
     @Autowired

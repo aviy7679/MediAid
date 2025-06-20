@@ -13,8 +13,12 @@ import com.example.mediaid.dal.user_medical_history.UserDiseaseRepository;
 import com.example.mediaid.dal.user_medical_history.UserMedication;
 import com.example.mediaid.dal.user_medical_history.UserMedicationRepository;
 import com.example.mediaid.dto.LoginRequest;
+import com.example.mediaid.dto.RiskFactorResponseDTO;
+import com.example.mediaid.dto.RiskFactorUpdateDTO;
 import com.example.mediaid.security.jwt.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -47,6 +51,8 @@ public class UserProfileController {
     private UserDiseaseRepository userDiseaseRepository;
     @Autowired
     private DiseaseRepository diseaseRepository;
+
+    Logger logger = LoggerFactory.getLogger(UserService.class);
 
     // GET /api/user/profile
     @GetMapping("/profile")
@@ -107,17 +113,6 @@ public class UserProfileController {
 
             profileData.put("riskFactors", riskFactors);
 
-            // Stats - נתונים בסיסיים (כרגע ריקים, אפשר להוסיף בהמשך)
-            Map<String, Object> stats = new HashMap<>();
-            stats.put("activeMedications", 0); // TODO: חישוב אמיתי
-            stats.put("activeDiseases", 0); // TODO: חישוב אמיתי
-            stats.put("profileCompleteness", calculateProfileCompleteness(user));
-            profileData.put("stats", stats);
-
-            // Medications & Diseases - ריקים כרגע
-            profileData.put("medications", new ArrayList<>());
-            profileData.put("diseases", new ArrayList<>());
-
             return ResponseEntity.ok(profileData);
 
         } catch (Exception e) {
@@ -155,7 +150,7 @@ public class UserProfileController {
         }
     }
 
-    // POST /api/user/create-account (חלופה ל-signUp)
+    // POST /api/user/create-account
     @PostMapping("/create-account")
     public ResponseEntity<?> createAccount(@RequestBody Map<String, Object> signupData) {
         try {
@@ -201,6 +196,33 @@ public class UserProfileController {
             }
         } catch (Exception e) {
             return ResponseEntity.status(500).body(createErrorResponse("Server error: " + e.getMessage()));
+        }
+    }
+    /**
+     * עדכון גורמי סיכון - מסונכרן לכל המערכות
+     */
+    @PostMapping("/risk-factors")
+    public ResponseEntity<?> updateRiskFactors(@RequestBody RiskFactorUpdateDTO dto, HttpServletRequest request) {
+        try {
+            UUID userId = extractUserIdFromRequest(request);
+            if (userId == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(createErrorResponse("Invalid or missing authorization token"));
+            }
+
+            logger.info("Updating comprehensive risk factors for user: {}", userId);
+
+            // עדכון בPostgreSQL + Neo4j
+            RiskFactorResponseDTO response = riskFactorService.updateUserRiskFactors(userId, dto);
+
+            logger.info("Risk factors updated successfully for user: {}", userId);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            logger.error("Error updating risk factors for user", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Error updating risk factors: " + e.getMessage()));
         }
     }
 
@@ -346,7 +368,6 @@ public class UserProfileController {
         }
     }
 
-    // Helper methods
     private UUID extractUserIdFromRequest(HttpServletRequest request) {
         try {
             String authHeader = request.getHeader("Authorization");
@@ -385,21 +406,4 @@ public class UserProfileController {
         return "Very High Risk";
     }
 
-    private double calculateProfileCompleteness(User user) {
-        int totalFields = 10;
-        int completedFields = 0;
-
-        if (user.getUsername() != null) completedFields++;
-        if (user.getEmail() != null) completedFields++;
-        if (user.getDateOfBirth() != null) completedFields++;
-        if (user.getGender() != null) completedFields++;
-        if (user.getHeight() != null) completedFields++;
-        if (user.getWeight() != null) completedFields++;
-        if (user.getSmokingStatus() != null) completedFields++;
-        if (user.getAlcoholConsumption() != null) completedFields++;
-        if (user.getPhysicalActivity() != null) completedFields++;
-        if (user.getBloodPressure() != null) completedFields++;
-
-        return (double) completedFields / totalFields * 100;
-    }
 }

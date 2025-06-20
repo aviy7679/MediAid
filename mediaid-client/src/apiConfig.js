@@ -9,7 +9,7 @@ export const API_ENDPOINTS = {
   // User management endpoints
   USER_PROFILE: `${API_BASE_URL}/api/user/profile`,
   CREATE_ACCOUNT: `${API_BASE_URL}/api/user/create-account`,
-  RISK_FACTORS: `${API_BASE_URL}/api/user/risk/risk-factors`,
+  RISK_FACTORS: `${API_BASE_URL}/api/user/risk-factors`,
 
   SEARCH_MEDICATIONS: `${API_BASE_URL}/api/medications/search`,
   SEARCH_DISEASES: `${API_BASE_URL}/api/diseases/search`,

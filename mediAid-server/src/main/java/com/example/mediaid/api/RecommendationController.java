@@ -2,6 +2,8 @@
 
 package com.example.mediaid.api;
 
+import com.example.mediaid.bl.emergency.BasicTreatmentRecommendationEngine;
+import com.example.mediaid.bl.emergency.MedicalGraphAnalyticsService;
 import com.example.mediaid.bl.emergency.SymptomAnalysisService;
 import com.example.mediaid.bl.emergency.TreatmentRecommendationEngine;
 import com.example.mediaid.dto.emergency.ExtractedSymptom;
@@ -11,6 +13,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -29,19 +32,30 @@ public class RecommendationController {
     private SymptomAnalysisService symptomAnalysisService;
 
     @Autowired
+    private BasicTreatmentRecommendationEngine basicTreatmentEngine;
+
+    @Autowired
     private TreatmentRecommendationEngine treatmentEngine;
 
     @Autowired
+    private MedicalGraphAnalyticsService graphAnalyticsService;
+
+
+    @Autowired
     private JwtUtil jwtUtil;
+
+    @Value("${mediaid.analysis.use-advanced-engine:true}")
+    private boolean useAdvancedEngine;
 
     /**
      * העלאת נתונים לניתוח - משולב (טקסט + תמונה + אודיו)
      */
     @PostMapping("/upload-data")
-    public ResponseEntity<?> uploadData(
+    public ResponseEntity<?> uploadDataWithAdvancedAnalysis(
             @RequestParam(value = "text", required = false) String text,
             @RequestParam(value = "image", required = false) MultipartFile imageFile,
             @RequestParam(value = "audio", required = false) MultipartFile audioFile,
+            @RequestParam(value = "useAdvanced", defaultValue = "true") boolean forceAdvanced,
             HttpServletRequest httpRequest) {
 
         try {
@@ -51,31 +65,28 @@ public class RecommendationController {
                         .body(createErrorResponse("Invalid or missing authorization token"));
             }
 
-            logger.info("Data upload and analysis for user: {}", userId);
+            logger.info("Starting {} analysis for user: {}",
+                    (useAdvancedEngine && forceAdvanced) ? "ADVANCED GRAPH" : "BASIC", userId);
 
             Set<ExtractedSymptom> allExtractedSymptoms = new LinkedHashSet<>();
             List<String> processedInputs = new ArrayList<>();
 
-            // שלב 1: עיבוד טקסט
+            // שלב 1: עיבוד נתונים (כמו קודם)
             if (text != null && !text.trim().isEmpty()) {
                 logger.info("Processing text data for user: {}", userId);
                 try {
-                    var textSymptom = symptomAnalysisService.extractSymptomsFromText(text);
-                    allExtractedSymptoms.addAll(textSymptom);
+                    var textSymptoms = symptomAnalysisService.extractSymptomsFromText(text);
+                    allExtractedSymptoms.addAll(textSymptoms);
                     processedInputs.add("text");
-                    logger.info("Extracted {} symptoms from text", textSymptom.size());
+                    logger.info("Extracted {} symptoms from text", textSymptoms.size());
                 } catch (Exception e) {
                     logger.error("Error processing text: {}", e.getMessage());
                     processedInputs.add("text(error: " + e.getMessage() + ")");
                 }
             }
 
-            // שלב 2: עיבוד תמונה
             if (imageFile != null && !imageFile.isEmpty()) {
                 logger.info("Processing image data for user: {}", userId);
-                logger.info("Analyzing image: {} (size: {} bytes)",
-                        imageFile.getOriginalFilename(), imageFile.getSize());
-
                 try {
                     var imageSymptoms = symptomAnalysisService.extractedSymptomsFromImage(imageFile.getBytes());
                     allExtractedSymptoms.addAll(imageSymptoms);
@@ -87,74 +98,66 @@ public class RecommendationController {
                 }
             }
 
-            // שלב 3: עיבוד אודיו - לעתיד
-
             // בדיקה אם נמצאו סימפטומים
             if (allExtractedSymptoms.isEmpty()) {
-                Map<String, Object> emptyResponse = new HashMap<>();
-                emptyResponse.put("success", true);
-                emptyResponse.put("message", "No symptoms detected in the provided data");
-                emptyResponse.put("processedInputs", processedInputs);
-                emptyResponse.put("extractedSymptoms", new ArrayList<>());
-                emptyResponse.put("treatmentPlan", null);
-                emptyResponse.put("timestamp", System.currentTimeMillis());
-
-                return ResponseEntity.ok(emptyResponse);
+                return createEmptyResponse(processedInputs);
             }
 
-            // שלב 4: ניתוח המצב הרפואי וגיבוש הנחיות טיפול
+            // שלב 2: בחירה בין מנוע בסיסי למתקדם
             TreatmentPlan treatmentPlan;
-            try {
+            String analysisType;
+
+            if (useAdvancedEngine && forceAdvanced) {
+                logger.info("Using ADVANCED Graph-Based Analysis Engine");
+                analysisType = "advanced_graph_thinking";
+
+                long startTime = System.currentTimeMillis();
                 treatmentPlan = treatmentEngine.analyzeSituation(userId, allExtractedSymptoms);
-                logger.info("Medical analysis completed successfully");
-            } catch (Exception e) {
-                logger.error("Error in medical analysis: {}", e.getMessage());
-                // תכנית בסיסית ברירת מחדל
-                treatmentPlan = createBasicTreatmentPlan(allExtractedSymptoms);
-            }
+                long analysisTime = System.currentTimeMillis() - startTime;
 
-            // שלב 5: החזרת התוצאות המפורטות
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("analysisType", determineAnalysisType(processedInputs));
-            response.put("processedInputs", processedInputs);
+                logger.info("Advanced analysis completed in {}ms", analysisTime);
 
-            // הוסף טקסט רק אם קיים
-            if (text != null && !text.trim().isEmpty()) {
-                response.put("originalText", text);
-            }
+                // הוספת מידע על זמן הניתוח למידע הנוסף
+                if (treatmentPlan.getAdditionalInfo() == null) {
+                    treatmentPlan.setAdditionalInfo(new HashMap<>());
+                }
+                treatmentPlan.getAdditionalInfo().put("analysisTimeMs", analysisTime);
+                treatmentPlan.getAdditionalInfo().put("engineType", "advanced_graph_thinking");
 
-            // הוסף שם קובץ תמונה רק אם קיים ולא null
-            if (imageFile != null && !imageFile.isEmpty()) {
-                String imageFileName = imageFile.getOriginalFilename();
-                if (imageFileName != null && !imageFileName.trim().isEmpty()) {
-                    response.put("imageFileName", imageFileName);
+            } else {
+                // שימוש במנוע המקורי
+                logger.info("Using Original Analysis Engine");
+                analysisType = "basic_pathfinding";
+
+                try {
+                    treatmentPlan = basicTreatmentEngine.analyzeSituation(userId, allExtractedSymptoms);
+                    if (treatmentPlan.getAdditionalInfo() == null) {
+                        treatmentPlan.setAdditionalInfo(new HashMap<>());
+                    }
+                    treatmentPlan.getAdditionalInfo().put("engineType", "basic_pathfinding");
+                } catch (Exception e) {
+                    logger.error("Error in original analysis: {}", e.getMessage());
+                    treatmentPlan = createBasicTreatmentPlan(allExtractedSymptoms);
                 }
             }
 
-            // הוסף שם קובץ אודיו רק אם קיים ולא null
-            if (audioFile != null && !audioFile.isEmpty()) {
-                String audioFileName = audioFile.getOriginalFilename();
-                if (audioFileName != null && !audioFileName.trim().isEmpty()) {
-                    response.put("audioFileName", audioFileName);
-                }
-            }
+            // שלב 3: בניית תשובה מקיפה
+            Map<String, Object> response = buildComprehensiveResponse(
+                    text, imageFile, audioFile, processedInputs,
+                    allExtractedSymptoms, treatmentPlan, analysisType, userId);
 
-            response.put("extractedSymptoms", new ArrayList<>(allExtractedSymptoms));
-            response.put("treatmentPlan", treatmentPlan);
-            response.put("timestamp", System.currentTimeMillis());
-
-            logger.info("Analysis completed for user {}. Found {} symptoms, urgency level: {}",
-                    userId, allExtractedSymptoms.size(), treatmentPlan.getUrgencyLevel());
+            logger.info("Analysis completed for user {}. Engine: {}, Symptoms: {}, Urgency: {}",
+                    userId, analysisType, allExtractedSymptoms.size(), treatmentPlan.getUrgencyLevel());
 
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            logger.error("Error in data upload and analysis", e);
+            logger.error("Critical error in enhanced analysis", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("Error processing data: " + e.getMessage()));
         }
     }
+
 
     /**
      * קבלת מידע רפואי נוכחי של המשתמש (לצורך בדיקה)
@@ -271,6 +274,271 @@ public class RecommendationController {
         ));
 
         return basicPlan;
+    }
+
+
+
+    @PostMapping("/advanced-graph-analysis")
+    public ResponseEntity<?> performAdvancedGraphAnalysis(
+            @RequestBody Map<String, Object> analysisRequest,
+            HttpServletRequest httpRequest) {
+
+        try {
+            UUID userId = extractUserIdFromRequest(httpRequest);
+            if (userId == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(createErrorResponse("Invalid or missing authorization token"));
+            }
+
+            logger.info("🕸️ Performing dedicated Graph Analytics for user: {}", userId);
+
+            // חילוץ פרמטרים מהבקשה
+            @SuppressWarnings("unchecked")
+            List<String> symptomNames = (List<String>) analysisRequest.get("symptoms");
+            int maxPathDepth = (Integer) analysisRequest.getOrDefault("maxDepth", 4);
+            boolean includeCommunities = (Boolean) analysisRequest.getOrDefault("includeCommunities", true);
+            boolean includeHubs = (Boolean) analysisRequest.getOrDefault("includeHubs", true);
+
+            // המרת שמות סימפטומים לאובייקטים
+            Set<ExtractedSymptom> symptoms = new HashSet<>();
+            for (String symptomName : symptomNames) {
+                ExtractedSymptom symptom = new ExtractedSymptom();
+                symptom.setName(symptomName);
+                symptom.setCui("MANUAL_" + symptomName.hashCode()); // CUI זמני
+                symptom.setConfidence(1.0);
+                symptom.setSource("manual");
+                symptoms.add(symptom);
+            }
+
+            // קבלת הקשר הרפואי של המשתמש
+            var userContext = treatmentEngine.getUserMedicalContext(userId);
+            var allUserEntities = getAllUserEntities(userContext);
+
+            Map<String, Object> graphAnalysisResults = new HashMap<>();
+
+            // 1. Advanced Pathway Analysis
+            List<MedicalGraphAnalyticsService.MedicalPathway> pathways = new ArrayList<>();
+            for (var entity : allUserEntities) {
+                var entityPathways = graphAnalyticsService.findMedicalPathways(
+                        entity.getCui(), symptoms, maxPathDepth);
+                pathways.addAll(entityPathways);
+            }
+            graphAnalysisResults.put("advancedPathways", pathways);
+            logger.info("🛣️ Found {} advanced pathways", pathways.size());
+
+            // 2. Community Detection (אם מתבקש)
+            if (includeCommunities) {
+                var communities = graphAnalyticsService.detectMedicalCommunities(allUserEntities);
+                graphAnalysisResults.put("medicalCommunities", communities);
+                logger.info("🕸️ Detected {} medical communities", communities.size());
+            }
+
+            // 3. Risk Propagation Analysis
+            var riskPropagation = graphAnalyticsService.calculateRiskPropagation(
+                    userContext.getRiskFactors(), symptoms, 0.85);
+            graphAnalysisResults.put("riskPropagation", riskPropagation);
+            logger.info("📊 Risk propagation: {:.3f} total risk", riskPropagation.getTotalRiskScore());
+
+            // 4. Medical Hub Analysis (אם מתבקש)
+            if (includeHubs) {
+                var medicalHubs = graphAnalyticsService.findMedicalHubs(allUserEntities);
+                graphAnalysisResults.put("medicalHubs", medicalHubs);
+                logger.info("🎯 Identified {} medical hubs", medicalHubs.size());
+            }
+
+            // בניית תשובה מפורטת
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("analysisType", "dedicated_graph_analytics");
+            response.put("userId", userId);
+            response.put("inputSymptoms", symptomNames);
+            response.put("analysisParameters", Map.of(
+                    "maxDepth", maxPathDepth,
+                    "includeCommunities", includeCommunities,
+                    "includeHubs", includeHubs
+            ));
+            response.put("userContextSize", Map.of(
+                    "medications", userContext.getCurrentMedications().size(),
+                    "diseases", userContext.getActiveDiseases().size(),
+                    "riskFactors", userContext.getRiskFactors().size()
+            ));
+            response.put("graphAnalysisResults", graphAnalysisResults);
+            response.put("analysisTimestamp", System.currentTimeMillis());
+
+            logger.info("✅ Dedicated graph analysis completed successfully");
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            logger.error("❌ Error in dedicated graph analysis", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Error in graph analysis: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * API להשוואה בין המנועים
+     */
+    @PostMapping("/compare-engines")
+    public ResponseEntity<?> compareAnalysisEngines(
+            @RequestParam(value = "text", required = false) String text,
+            @RequestParam(value = "image", required = false) MultipartFile imageFile,
+            HttpServletRequest httpRequest) {
+
+        try {
+            UUID userId = extractUserIdFromRequest(httpRequest);
+            if (userId == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(createErrorResponse("Invalid or missing authorization token"));
+            }
+
+            logger.info("⚖️ Comparing analysis engines for user: {}", userId);
+
+            // חילוץ סימפטומים
+            Set<ExtractedSymptom> symptoms = extractSymptoms(text, imageFile);
+            if (symptoms.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("No symptoms found for comparison"));
+            }
+
+            Map<String, Object> comparison = new HashMap<>();
+
+            // ניתוח עם המנוע המקורי
+            long startTime1 = System.currentTimeMillis();
+            TreatmentPlan basicPlan = basicTreatmentEngine.analyzeSituation(userId, symptoms);
+            long basicTime = System.currentTimeMillis() - startTime1;
+
+            // ניתוח עם המנוע המתקדם
+            long startTime2 = System.currentTimeMillis();
+            TreatmentPlan advancedPlan = treatmentEngine.analyzeSituation(userId, symptoms);
+            long advancedTime = System.currentTimeMillis() - startTime2;
+
+            // בניית השוואה
+            comparison.put("basicAnalysis", Map.of(
+                    "urgencyLevel", basicPlan.getUrgencyLevel(),
+                    "connectionsFound", basicPlan.getFoundConnections().size(),
+                    "immediateActions", basicPlan.getImmediateActions().size(),
+                    "recommendedTests", basicPlan.getRecommendedTests().size(),
+                    "analysisTimeMs", basicTime,
+                    "mainConcern", basicPlan.getMainConcern()
+            ));
+
+            comparison.put("advancedAnalysis", Map.of(
+                    "urgencyLevel", advancedPlan.getUrgencyLevel(),
+                    "connectionsFound", advancedPlan.getFoundConnections().size(),
+                    "immediateActions", advancedPlan.getImmediateActions().size(),
+                    "recommendedTests", advancedPlan.getRecommendedTests().size(),
+                    "analysisTimeMs", advancedTime,
+                    "mainConcern", advancedPlan.getMainConcern(),
+                    "additionalInsights", advancedPlan.getAdditionalInfo()
+            ));
+
+            comparison.put("performance", Map.of(
+                    "basicTimeMs", basicTime,
+                    "advancedTimeMs", advancedTime,
+                    "timeRatio", (double) advancedTime / basicTime,
+                    "advancedSlower", advancedTime > basicTime
+            ));
+
+            comparison.put("insightsDiff", Map.of(
+                    "connectionsImprovement", advancedPlan.getFoundConnections().size() - basicPlan.getFoundConnections().size(),
+                    "urgencyDifference", !basicPlan.getUrgencyLevel().equals(advancedPlan.getUrgencyLevel()),
+                    "moreDetailedReasoning", advancedPlan.getReasoning().length() > basicPlan.getReasoning().length()
+            ));
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("comparison", comparison);
+            response.put("symptomsAnalyzed", symptoms.size());
+            response.put("comparisonTimestamp", System.currentTimeMillis());
+
+            logger.info("⚖️ Engine comparison completed. Basic: {}ms, Advanced: {}ms", basicTime, advancedTime);
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            logger.error("❌ Error in engine comparison", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Error in comparison: " + e.getMessage()));
+        }
+    }
+
+    // =============== HELPER METHODS ===============
+
+    private Set<ExtractedSymptom> extractSymptoms(String text, MultipartFile imageFile) {
+        Set<ExtractedSymptom> symptoms = new LinkedHashSet<>();
+
+        if (text != null && !text.trim().isEmpty()) {
+            try {
+                symptoms.addAll(symptomAnalysisService.extractSymptomsFromText(text));
+            } catch (Exception e) {
+                logger.warn("Error extracting from text: {}", e.getMessage());
+            }
+        }
+
+        if (imageFile != null && !imageFile.isEmpty()) {
+            try {
+                symptoms.addAll(symptomAnalysisService.extractedSymptomsFromImage(imageFile.getBytes()));
+            } catch (Exception e) {
+                logger.warn("Error extracting from image: {}", e.getMessage());
+            }
+        }
+
+        return symptoms;
+    }
+
+    private Map<String, Object> buildComprehensiveResponse(
+            String text, MultipartFile imageFile, MultipartFile audioFile,
+            List<String> processedInputs, Set<ExtractedSymptom> symptoms,
+            TreatmentPlan treatmentPlan, String analysisType, UUID userId) {
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("analysisType", analysisType);
+        response.put("engineUsed", analysisType.equals("advanced_graph_thinking") ? "Enhanced Graph Analytics" : "Basic Pathfinding");
+        response.put("processedInputs", processedInputs);
+
+        // הוסף טקסט אם קיים
+        if (text != null && !text.trim().isEmpty()) {
+            response.put("originalText", text);
+        }
+
+        // הוסף שם קובץ תמונה אם קיים
+        if (imageFile != null && !imageFile.isEmpty()) {
+            String imageFileName = imageFile.getOriginalFilename();
+            if (imageFileName != null && !imageFileName.trim().isEmpty()) {
+                response.put("imageFileName", imageFileName);
+            }
+        }
+
+        response.put("extractedSymptoms", new ArrayList<>(symptoms));
+        response.put("treatmentPlan", treatmentPlan);
+        response.put("timestamp", System.currentTimeMillis());
+
+        // מידע מתקדם אם השתמשנו במנוע המתקדם
+        if ("advanced_graph_thinking".equals(analysisType) && treatmentPlan.getAdditionalInfo() != null) {
+            response.put("graphInsights", treatmentPlan.getAdditionalInfo());
+        }
+
+        return response;
+    }
+
+    private ResponseEntity<?> createEmptyResponse(List<String> processedInputs) {
+        Map<String, Object> emptyResponse = new HashMap<>();
+        emptyResponse.put("success", true);
+        emptyResponse.put("message", "No symptoms detected in the provided data");
+        emptyResponse.put("processedInputs", processedInputs);
+        emptyResponse.put("extractedSymptoms", new ArrayList<>());
+        emptyResponse.put("treatmentPlan", null);
+        emptyResponse.put("timestamp", System.currentTimeMillis());
+        return ResponseEntity.ok(emptyResponse);
+    }
+
+    private List<com.example.mediaid.dto.emergency.UserMedicalEntity> getAllUserEntities(
+            com.example.mediaid.dto.emergency.UserMedicalContext context) {
+        List<com.example.mediaid.dto.emergency.UserMedicalEntity> allEntities = new ArrayList<>();
+        allEntities.addAll(context.getCurrentMedications());
+        allEntities.addAll(context.getActiveDiseases());
+        allEntities.addAll(context.getRiskFactors());
+        return allEntities;
     }
 
 }

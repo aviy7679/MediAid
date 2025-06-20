@@ -37,7 +37,7 @@ public class UmlsTermHelper {
 
                 String[] fields = line.split("\\|");
 
-                // ⚠️ תיקון: בדיקת תקינות - וודא שיש לפחות 2 שדות
+                // בדיקת תקינות - וודא שיש לפחות 2 שדות
                 if (fields.length < 2) {
                     logger.warn("שורה {} בקובץ MRSTY לא תקינה: {}", lineNumber, line.substring(0, Math.min(50, line.length())));
                     skippedLines++;
@@ -68,10 +68,10 @@ public class UmlsTermHelper {
                 String[] fields = line.split("\\|");
                 String cui = fields[0];
                 String lang = fields[1];
-                String sab = fields[11];
-                String tty = fields[12];
-                String ispref = fields[16];
-                String name = fields[14];
+                String sab = fields[11]; // מקור המידע (UMLS source) לדוגמה: SNOMEDCT_US
+                String tty = fields[12]; // סוג מונח: PT = Preferred Term
+                String ispref = fields[16]; // האם מונח מועדף
+                String name = fields[14]; // שם המונח
 
             if(cuis.contains(cui) && "ENG".equals(lang)) {
             UmlsTerm term = new UmlsTerm(name, sab, tty, ispref);

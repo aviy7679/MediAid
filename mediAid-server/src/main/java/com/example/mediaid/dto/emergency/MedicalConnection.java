@@ -33,6 +33,6 @@ public class MedicalConnection {
     private String toEntity; // אל מה (סימפטום, מחלה, וכו')
     private String fromCui;
     private String toCui;
-    private Double confidence;
+    private Double confidence;  //אמינות
     private String explanation;
 }

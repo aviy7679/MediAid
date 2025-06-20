@@ -1,6 +1,5 @@
 package com.example.mediaid.bl.emergency;
 
-import com.example.mediaid.bl.neo4j.RiskFactorSer;
 import com.example.mediaid.dal.UserRepository;
 import com.example.mediaid.dto.emergency.*;
 import org.neo4j.driver.Driver;
@@ -12,9 +11,6 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * מנוע המלצות טיפול מעודכן - כולל גורמי סיכון מקיפים
- */
 @Service
 public class TreatmentRecommendationEngine {
 
@@ -36,13 +32,10 @@ public class TreatmentRecommendationEngine {
     private RiskFactorService riskFactorService;
 
     @Autowired
-    private RiskFactorSer riskFactorSer;
+    private MedicalGraphAnalyticsService graphAnalytics;
 
-    /**
-     * הפונקציה המרכזית - ניתוח מצב רפואי מקיף
-     */
     public TreatmentPlan analyzeSituation(UUID userId, Set<ExtractedSymptom> symptoms) {
-        logger.info("Starting comprehensive medical analysis for user {} with {} symptoms", userId, symptoms.size());
+        logger.info("Starting medical analysis for user {} with symptoms {}", userId, symptoms.size());
 
         try {
             // שלב 1: טעינת המידע הרפואי של המשתמש
@@ -52,562 +45,363 @@ public class TreatmentRecommendationEngine {
                     userContext.getActiveDiseases().size(),
                     userContext.getRiskFactors().size());
 
-            // שלב 2: עדכון גורמי סיכון דינמיים ב-Neo4j
-            updateUserRiskFactorsInNeo4j(userId, userContext);
+            //Community Detection :שלב 2
+            List<MedicalGraphAnalyticsService.MedicalCommunity> medicalCommunities =
+                    graphAnalytics.detectMedicalCommunities(getAllUserEntities(userContext));
+            logger.debug("Loaded medical communities: {} medications", medicalCommunities.size());
 
             // שלב 3: חיפוש קשרים רפואיים
-            List<MedicalConnection> allConnections = findAllMedicalConnections(userContext, new ArrayList<>(symptoms));
-            logger.info("Found {} medical connections (including risk factors)", allConnections.size());
+            List<MedicalGraphAnalyticsService.MedicalPathway> detectedPathways = new ArrayList<>();
+            for (UserMedicalEntity entity : getAllUserEntities(userContext)) {
+                List<MedicalGraphAnalyticsService.MedicalPathway> pathways =
+                        graphAnalytics.findMedicalPathways(entity.getCui(), symptoms, 5);
+                detectedPathways.addAll(pathways);
+            }
+            logger.debug("Found {} advanced pathways", detectedPathways.size());
 
-            // שלב 4: ניתוח השפעת גורמי הסיכון על הסימפטומים
-            List<MedicalConnection> riskFactorConnections = analyzeRiskFactorImpact(userContext, symptoms);
-            allConnections.addAll(riskFactorConnections);
-            logger.info("Added {} risk factor connections", riskFactorConnections.size());
+            //שלב 4: חישוב הסיכונים
+            MedicalGraphAnalyticsService.RiskPropagationResult riskPropagation =
+                    graphAnalytics.calculateRiskPropagation(userContext.getRiskFactors(), symptoms, 0.85);
+            logger.error("Risk propagation analysis complete. Total risk: {:.3f}",
+                    riskPropagation.getTotalRiskScore());
 
-            // שלב 5: קביעת רמת הדחיפות
-            TreatmentPlan.UrgencyLevel urgencyLevel = calculateUrgencyLevelWithRiskFactors(
-                    allConnections, symptoms, userContext);
-            logger.info("Calculated urgency level: {} (considering risk factors)", urgencyLevel);
+            //Medical Hub Analysis :שלב 5
+            List<MedicalGraphAnalyticsService.MedicalHub> medicalHubs =
+                    graphAnalytics.findMedicalHubs(getAllUserEntities(userContext));
+            logger.debug("Found {} medical hubs", medicalHubs.size());
 
-            // שלב 6: יצירת תכנית הטיפול המקיפה
-            TreatmentPlan treatmentPlan = buildComprehensiveTreatmentPlan(
-                    urgencyLevel, allConnections, symptoms, userContext);
+            //שלב 6: קשרים בסיסיים
+            List<MedicalConnection> basicConnections = findBasicConnections(userContext, new ArrayList<>(symptoms));
+            logger.debug("Found {} basic basicConnections", basicConnections.size());
 
-            logger.info("Comprehensive treatment plan created for user {}", userId);
+            //שלב 7: קביעת רמת הדחיפות
+            TreatmentPlan.UrgencyLevel urgencyLevel = calculateUrgencyLevel(
+                    symptoms, detectedPathways, riskPropagation, medicalCommunities, userContext);
+            logger.debug("Urgency level: {}", urgencyLevel);
+
+            //שלב 8: קביעת תוכנית טיפול
+            TreatmentPlan treatmentPlan = buildTreatmentPlan(
+                    urgencyLevel, userContext, symptoms, detectedPathways, riskPropagation, medicalCommunities, medicalHubs, basicConnections);
+            logger.debug("Treatment plan created successfully!");
             return treatmentPlan;
 
         } catch (Exception e) {
-            logger.error("Error in comprehensive medical analysis for user {}: {}", userId, e.getMessage(), e);
+            logger.error("Error in medical analysis for user {}", userId, e);
             return createEmergencyPlan(symptoms);
         }
     }
 
-    /**
-     * עדכון גורמי סיכון של המשתמש ב-Neo4j
-     */
-    private void updateUserRiskFactorsInNeo4j(UUID userId, UserMedicalContext userContext) {
-        try {
-            Map<String, Double> userRiskFactors = new HashMap<>();
 
-            // המרת גורמי סיכון לערכים מספריים
-            if (userContext.getBasicInfo() != null) {
-                // גיל
-                if (userContext.getBasicInfo().get("age") != null) {
-                    userRiskFactors.put("AGE", ((Integer) userContext.getBasicInfo().get("age")).doubleValue());
-                }
+    //חישוב רמת הדחיפות
+    private TreatmentPlan.UrgencyLevel calculateUrgencyLevel(Set<ExtractedSymptom> symptoms,
+                                                             List<MedicalGraphAnalyticsService.MedicalPathway> pathways,
+                                                             MedicalGraphAnalyticsService.RiskPropagationResult riskPropagation,
+                                                             List<MedicalGraphAnalyticsService.MedicalCommunity> medicalCommunities,
+                                                             UserMedicalContext userContext) {
+        logger.debug("Calculating urgency level based on symptoms, pathways, risk propagation, and medical communities");
 
-                // BMI
-                if (userContext.getBasicInfo().get("bmi") != null) {
-                    userRiskFactors.put("BMI", (Double) userContext.getBasicInfo().get("bmi"));
-                }
-
-                // עישון (המרה לציון מספרי)
-                if (userContext.getBasicInfo().get("smokingRiskWeight") != null) {
-                    double smokingWeight = (Double) userContext.getBasicInfo().get("smokingRiskWeight");
-                    userRiskFactors.put("SMOKING_SCORE", smokingWeight * 10); // נרמול לסקלה של 0-10
-                }
-
-                // לחץ דם (נמיר מהתיאור למספר)
-                if (userContext.getBasicInfo().get("bloodPressure") != null) {
-                    String bpDescription = (String) userContext.getBasicInfo().get("bloodPressure");
-                    double bpValue = convertBloodPressureDescriptionToValue(bpDescription);
-                    userRiskFactors.put("BLOOD_PRESSURE_SYSTOLIC", bpValue);
-                }
-            }
-
-            // יצירת קשרים ב-Neo4j
-            if (!userRiskFactors.isEmpty()) {
-                riskFactorSer.createUserRiskFactorRelationships(userId.toString(), userRiskFactors);
-                logger.debug("Updated {} risk factors in Neo4j for user {}", userRiskFactors.size(), userId);
-            }
-
-        } catch (Exception e) {
-            logger.warn("Could not update risk factors in Neo4j for user {}: {}", userId, e.getMessage());
-        }
-    }
-
-    /**
-     * המרת תיאור לחץ דם לערך מספרי
-     */
-    private double convertBloodPressureDescriptionToValue(String description) {
-        return switch (description.toLowerCase()) {
-            case "normal" -> 120;
-            case "elevated" -> 130;
-            case "stage 1 hypertension" -> 140;
-            case "stage 2 hypertension" -> 160;
-            case "hypertensive crisis" -> 180;
-            default -> 120;
-        };
-    }
-
-    /**
-     * ניתוח השפעת גורמי הסיכון על הסימפטומים
-     */
-    private List<MedicalConnection> analyzeRiskFactorImpact(UserMedicalContext userContext, Set<ExtractedSymptom> symptoms) {
-        List<MedicalConnection> riskConnections = new ArrayList<>();
-
-        try {
-            for (UserMedicalEntity riskFactor : userContext.getRiskFactors()) {
-                for (ExtractedSymptom symptom : symptoms) {
-                    MedicalConnection connection = analyzeSpecificRiskFactorImpact(riskFactor, symptom, userContext);
-                    if (connection != null) {
-                        riskConnections.add(connection);
-                    }
-                }
-            }
-
-            logger.debug("Analyzed risk factor impact: found {} connections", riskConnections.size());
-
-        } catch (Exception e) {
-            logger.error("Error analyzing risk factor impact: {}", e.getMessage());
-        }
-
-        return riskConnections;
-    }
-
-    /**
-     * ניתוח השפעה של גורם סיכון ספציפי על סימפטום
-     */
-    private MedicalConnection analyzeSpecificRiskFactorImpact(UserMedicalEntity riskFactor, ExtractedSymptom symptom, UserMedicalContext userContext) {
-        try {
-            // לוגיקת ניתוח לפי סוג גורם הסיכון והסימפטום
-            String riskType = getRiskFactorType(riskFactor);
-            double riskWeight = getRiskFactorWeight(riskFactor);
-
-            // מיפוי קשרים ידועים בין גורמי סיכון לסימפטומים
-            boolean isRelevant = isRiskFactorRelevantToSymptom(riskType, symptom.getName(), riskWeight);
-
-            if (isRelevant) {
-                MedicalConnection connection = new MedicalConnection();
-                connection.setType(MedicalConnection.ConnectionType.RISK_FACTOR);
-                connection.setFromEntity(riskFactor.getName());
-                connection.setToEntity(symptom.getName());
-                connection.setFromCui(riskFactor.getCui());
-                connection.setToCui(symptom.getCui());
-                connection.setConfidence(calculateRiskFactorConfidence(riskType, symptom.getName(), riskWeight));
-                connection.setExplanation(buildRiskFactorExplanation(riskFactor, symptom, userContext));
-
-                return connection;
-            }
-
-        } catch (Exception e) {
-            logger.debug("Error analyzing specific risk factor impact: {}", e.getMessage());
-        }
-
-        return null;
-    }
-
-    /**
-     * בדיקה אם גורם סיכון רלוונטי לסימפטום
-     */
-    private boolean isRiskFactorRelevantToSymptom(String riskType, String symptomName, double riskWeight) {
-        Map<String, Set<String>> riskSymptomMap = Map.of(
-                "SMOKING", Set.of("chest pain", "shortness of breath", "cough", "fatigue"),
-                "BMI", Set.of("chest pain", "shortness of breath", "fatigue", "joint pain"),
-                "BLOOD_PRESSURE", Set.of("headache", "chest pain", "dizziness", "fatigue"),
-                "AGE_GROUP", Set.of("fatigue", "joint pain", "memory problems", "dizziness"),
-                "FAMILY_HEART_DISEASE", Set.of("chest pain", "shortness of breath", "palpitations"),
-                "FAMILY_CANCER", Set.of("fatigue", "weight loss", "pain"),
-                "STRESS", Set.of("headache", "chest pain", "fatigue", "insomnia"),
-                "PHYSICAL_ACTIVITY", Set.of("fatigue", "shortness of breath", "chest pain")
-        );
-
-        Set<String> relevantSymptoms = riskSymptomMap.get(riskType);
-        if (relevantSymptoms == null) return false;
-
-        return relevantSymptoms.stream()
-                .anyMatch(rs -> symptomName.toLowerCase().contains(rs.toLowerCase())) && riskWeight > 0.2;
-    }
-
-    /**
-     * חישוב רמת ביטחון לקשר גורם סיכון-סימפטום
-     */
-    private double calculateRiskFactorConfidence(String riskType, String symptomName, double riskWeight) {
-        double baseConfidence = switch (riskType) {
-            case "SMOKING" -> 0.8;
-            case "BMI" -> 0.7;
-            case "BLOOD_PRESSURE" -> 0.85;
-            case "FAMILY_HEART_DISEASE" -> 0.75;
-            case "AGE_GROUP" -> 0.6;
-            default -> 0.5;
-        };
-
-        return Math.min(0.95, baseConfidence * (1 + riskWeight));
-    }
-
-    /**
-     * בניית הסבר לקשר גורם סיכון-סימפטום
-     */
-    private String buildRiskFactorExplanation(UserMedicalEntity riskFactor, ExtractedSymptom symptom, UserMedicalContext userContext) {
-        String riskType = getRiskFactorType(riskFactor);
-
-        return switch (riskType) {
-            case "SMOKING" -> String.format("עישון יכול להיות גורם לסימפטום %s בשל השפעתו על מערכת הנשימה והלב", symptom.getName());
-            case "BMI" -> String.format("עודף משקל יכול לתרום להופעת %s בשל העומס הנוסף על הגוף", symptom.getName());
-            case "BLOOD_PRESSURE" -> String.format("לחץ דם גבוה יכול לגרום ל%s כתוצאה מעומס על מערכת הלב וכלי הדם", symptom.getName());
-            case "FAMILY_HEART_DISEASE" -> String.format("היסטוריה משפחתית של מחלות לב מעלה את הסיכון להופעת %s", symptom.getName());
-            case "AGE_GROUP" -> String.format("הגיל יכול להיות גורם תורם להופעת %s", symptom.getName());
-            default -> String.format("גורם הסיכון %s עשוי להיות קשור לסימפטום %s", riskFactor.getName(), symptom.getName());
-        };
-    }
-
-    /**
-     * קביעת רמת דחיפות כולל גורמי סיכון
-     */
-    private TreatmentPlan.UrgencyLevel calculateUrgencyLevelWithRiskFactors(
-            List<MedicalConnection> connections, Set<ExtractedSymptom> symptoms, UserMedicalContext userContext) {
-
-        // בדיקת סימפטומים דחופים (כמו קודם)
-        Set<String> emergencyKeywords = Set.of(
-                "chest pain", "difficulty breathing", "severe pain", "bleeding",
-                "unconscious", "seizure", "stroke", "heart attack"
-        );
-
-        boolean hasEmergencySymptoms = symptoms.stream()
-                .anyMatch(symptom -> emergencyKeywords.stream()
-                        .anyMatch(keyword -> symptom.getName().toLowerCase().contains(keyword)));
-
-        if (hasEmergencySymptoms) {
-            logger.warn("Emergency symptoms detected!");
+        //בדיקת סימפטומים דחופים
+        if (hasEmergencySymptoms(symptoms)) {
+            logger.debug("Emergency symptoms found");
             return TreatmentPlan.UrgencyLevel.EMERGENCY;
         }
 
-        // ניתוח גורמי סיכון
-        double riskFactorScore = calculateOverallRiskFactorScore(userContext);
-        logger.debug("Overall risk factor score: {}", riskFactorScore);
+        //
+        double urgencyScore = 0.0;
+        double riskScore = Math.min(1.0, riskPropagation.getTotalRiskScore() / symptoms.size());
+        urgencyScore += riskScore * 0.4;
+        logger.debug("Risk propagation contribution: {:.3f}", riskScore * 0.4);
 
-        // קשרים עם ביטחון גבוה
-        long highConfidenceConnections = connections.stream()
-                .filter(conn -> conn.getConfidence() > 0.8)
-                .count();
+        // חישוב לפי המסלולים
+        double pathwayScore = pathways.stream()
+                .mapToDouble(p -> p.getRiskScore() * p.getConfidence())
+                .max().orElse(0.0);
+        urgencyScore += Math.min(1.0, pathwayScore) * 0.3;
+        logger.debug("Advanced pathways contribution: {:.3f}", Math.min(1.0, pathwayScore) * 0.3);
 
-        // תופעות לוואי מתרופות
-        long sideEffectConnections = connections.stream()
-                .filter(conn -> conn.getType() == MedicalConnection.ConnectionType.SIDE_EFFECT)
-                .filter(conn -> conn.getConfidence() > 0.6)
-                .count();
+        // חישוב מהקהילות הרפואיות (קהילות גדולות  = בעיה מורכבת יותר)
+        double communityScore = medicalCommunities.stream()
+                .mapToDouble(c -> c.getCohesionScore() * (c.getSize() / 10.0))
+                .max().orElse(0.0);
+        urgencyScore += Math.min(1.0, communityScore) * 0.2;
+        logger.debug("Medical communities contribution: {:.3f}", Math.min(1.0, communityScore) * 0.2);
 
-        // קשרי גורמי סיכון
-        long riskFactorConnections = connections.stream()
-                .filter(conn -> conn.getType() == MedicalConnection.ConnectionType.RISK_FACTOR)
-                .filter(conn -> conn.getConfidence() > 0.7)
-                .count();
+        //ציון גומי סיכון כלליים
+        double userRiskScore = userContext.getOverallRiskScore() != null ? userContext.getOverallRiskScore() : 0.0;
+        urgencyScore += userRiskScore * 0.1;
+        logger.debug("User risk factors contribution: {:.3f}", userRiskScore * 0.1);
 
-        // החלטה על בסיס כל הגורמים
-        if (sideEffectConnections > 0 || (riskFactorScore > 0.8 && riskFactorConnections > 2)) {
-            return TreatmentPlan.UrgencyLevel.HIGH;
-        }
+        logger.info("Final urgency score: {:.3f}", urgencyScore);
 
-        if (highConfidenceConnections > 2 || (riskFactorScore > 0.6 && riskFactorConnections > 1)) {
-            return TreatmentPlan.UrgencyLevel.MEDIUM;
-        }
-
-        if (riskFactorScore > 0.4 || riskFactorConnections > 0) {
-            return TreatmentPlan.UrgencyLevel.MEDIUM;
-        }
-
+        // החלטה על רמת דחיפות
+        if (urgencyScore > 0.8) return TreatmentPlan.UrgencyLevel.HIGH;
+        if (urgencyScore > 0.5) return TreatmentPlan.UrgencyLevel.MEDIUM;
         return TreatmentPlan.UrgencyLevel.LOW;
     }
 
-    /**
-     * חישוב ציון גורמי סיכון כולל
-     */
-    private double calculateOverallRiskFactorScore(UserMedicalContext userContext) {
-        if (userContext.getRiskFactors().isEmpty()) {
-            return 0.0;
-        }
+    private TreatmentPlan buildTreatmentPlan(
+            TreatmentPlan.UrgencyLevel urgencyLevel,
+            UserMedicalContext userContext,
+            Set<ExtractedSymptom> symptoms,
+            List<MedicalGraphAnalyticsService.MedicalPathway> pathways,
+            MedicalGraphAnalyticsService.RiskPropagationResult riskPropagation,
+            List<MedicalGraphAnalyticsService.MedicalCommunity> communities,
+            List<MedicalGraphAnalyticsService.MedicalHub> hubs,
+            List<MedicalConnection> basicConnections) {
 
-        double totalWeight = 0.0;
-        int factorCount = 0;
-
-        for (UserMedicalEntity riskFactor : userContext.getRiskFactors()) {
-            double weight = getRiskFactorWeight(riskFactor);
-            if (weight > 0.1) { // רק גורמי סיכון משמעותיים
-                totalWeight += weight;
-                factorCount++;
-            }
-        }
-
-        return factorCount > 0 ? totalWeight / factorCount : 0.0;
-    }
-
-    /**
-     * בניית תכנית טיפול מקיפה
-     */
-    private TreatmentPlan buildComprehensiveTreatmentPlan(TreatmentPlan.UrgencyLevel urgencyLevel,
-                                                          List<MedicalConnection> connections,
-                                                          Set<ExtractedSymptom> symptoms,
-                                                          UserMedicalContext userContext) {
         TreatmentPlan plan = new TreatmentPlan();
         plan.setUrgencyLevel(urgencyLevel);
-        plan.setFoundConnections(connections);
 
-        // קביעת הדאגה העיקרית (כולל גורמי סיכון)
-        plan.setMainConcern(determineMainConcernWithRiskFactors(connections, symptoms, userContext));
+        // דאגה עיקרית מבוססת Graph Insights
+        plan.setMainConcern(determineMainDiagnosis(pathways, communities, hubs, symptoms));
 
-        // הסבר למשתמש (מעודכן)
-        plan.setReasoning(buildReasoningWithRiskFactors(connections, urgencyLevel, userContext));
+        // הסבר מפורט עם תובנות גרף
+        plan.setReasoning(buildReasoning(urgencyLevel, pathways, riskPropagation, communities, hubs));
 
-        // פעולות מיידיות (כולל המלצות לגורמי סיכון)
-        plan.setImmediateActions(generateImmediateActionsWithRiskFactors(connections, urgencyLevel, userContext));
+        // פעולות מיידיות מתקדמות
+        plan.setImmediateActions(generateImmediateActions(urgencyLevel, pathways, hubs, userContext));
 
-        // בדיקות מומלצות (מותאמות לגורמי סיכון)
-        plan.setRecommendedTests(generateRecommendedTestsWithRiskFactors(symptoms, urgencyLevel, userContext));
+        // בדיקות מומלצות בהתבסס על Graph Analytics
+        plan.setRecommendedTests(generateRecommendedTests(symptoms, pathways, communities, urgencyLevel));
 
-        // ביקורי רופא
-        plan.setDoctorVisits(generateDoctorVisitsWithRiskFactors(urgencyLevel, connections, userContext));
+        // ביקורי רופא מותאמים
+        plan.setDoctorVisits(generateDoctorVisits(urgencyLevel, communities, hubs));
 
-        // מידע נוסף מקיף
-        plan.setAdditionalInfo(buildComprehensiveAdditionalInfo(userContext, connections));
+        // שילוב קשרים בסיסיים וגרף מתקדם
+        List<MedicalConnection> allConnections = new ArrayList<>(basicConnections);
+        allConnections.addAll(convertPathwaysToConnections(pathways));
+        plan.setFoundConnections(allConnections);
+
+        // מידע נוסף מקיף עם Graph Insights
+        plan.setAdditionalInfo(buildAdditionalInfo(userContext, pathways, riskPropagation, communities, hubs));
 
         return plan;
     }
 
-    /**
-     * קביעת הדאגה העיקרית כולל גורמי סיכון
-     */
-    private String determineMainConcernWithRiskFactors(List<MedicalConnection> connections, Set<ExtractedSymptom> symptoms, UserMedicalContext userContext) {
-        // תופעות לוואי
-        Optional<MedicalConnection> sideEffect = connections.stream()
-                .filter(conn -> conn.getType() == MedicalConnection.ConnectionType.SIDE_EFFECT)
-                .max(Comparator.comparingDouble(MedicalConnection::getConfidence));
-
-        if (sideEffect.isPresent()) {
-            return String.format("Suspected side effect of medication %s", sideEffect.get().getFromEntity());
+    //קביעת הדאגה העיקרית
+    private String determineMainDiagnosis(List<MedicalGraphAnalyticsService.MedicalPathway> pathways,
+                                          List<MedicalGraphAnalyticsService.MedicalCommunity> communities,
+                                          List<MedicalGraphAnalyticsService.MedicalHub> hubs,
+                                          Set<ExtractedSymptom> symptoms) {
+        //המסלול המסוכן ביותר
+        Optional<MedicalGraphAnalyticsService.MedicalPathway> mostRiskyPathway = pathways.stream()
+                .max(Comparator.comparingDouble(p -> p.getRiskScore() * p.getConfidence()));
+        if (mostRiskyPathway.isPresent()) {
+            MedicalGraphAnalyticsService.MedicalPathway pathway = mostRiskyPathway.get();
+            return String.format("High-risk medical pathway detected: %s (Risk: %.2f, Confidence: %.2f)",
+                    pathway.getExplanation(), pathway.getRiskScore(), pathway.getConfidence());
         }
 
-        // גורמי סיכון משמעותיים
-        List<MedicalConnection> significantRiskFactors = connections.stream()
-                .filter(conn -> conn.getType() == MedicalConnection.ConnectionType.RISK_FACTOR)
-                .filter(conn -> conn.getConfidence() > 0.7)
-                .collect(Collectors.toList());
-
-        if (!significantRiskFactors.isEmpty()) {
-            String riskFactorNames = significantRiskFactors.stream()
-                    .map(MedicalConnection::getFromEntity)
-                    .collect(Collectors.joining(", "));
-            return String.format("Symptoms may be influenced by risk factors: %s", riskFactorNames);
+        //אם אין מסלול - קהילות גדולות
+        Optional<MedicalGraphAnalyticsService.MedicalCommunity> largestCommunity = communities.stream()
+                .max(Comparator.comparingInt(MedicalGraphAnalyticsService.MedicalCommunity::getSize));
+        if (largestCommunity.isPresent() && largestCommunity.get().getSize() > 3) {
+            return String.format("Complex medical interaction detected in community of %d entities (%s)",
+                    largestCommunity.get().getSize(), largestCommunity.get().getDominantType());
         }
-
-        // מחלות קיימות
-        Optional<MedicalConnection> diseaseConnection = connections.stream()
-                .filter(conn -> conn.getType() == MedicalConnection.ConnectionType.DISEASE_SYMPTOM)
-                .max(Comparator.comparingDouble(MedicalConnection::getConfidence));
-
-        if (diseaseConnection.isPresent()) {
-            return String.format("Symptoms may be related to existing condition: %s", diseaseConnection.get().getFromEntity());
-        }
-
-        return "Analysis of reported symptoms with consideration of personal risk factors";
+        return "Analysis of reported symptoms with advanced graph-based medical insights";
     }
 
-    /**
-     * בניית הסבר מקיף
-     */
-    private String buildReasoningWithRiskFactors(List<MedicalConnection> connections, TreatmentPlan.UrgencyLevel urgencyLevel, UserMedicalContext userContext) {
+
+    //בניית הסבר למשתמש
+    private String buildReasoning(TreatmentPlan.UrgencyLevel urgencyLevel,
+                                  List<MedicalGraphAnalyticsService.MedicalPathway> pathways,
+                                  MedicalGraphAnalyticsService.RiskPropagationResult riskPropagation,
+                                  List<MedicalGraphAnalyticsService.MedicalCommunity> communities,
+                                  List<MedicalGraphAnalyticsService.MedicalHub> hubs) {
         StringBuilder reasoning = new StringBuilder();
 
+        //הסבר בסיסי על רמת הדחיפות
         switch (urgencyLevel) {
-            case EMERGENCY -> reasoning.append("Emergency symptoms requiring immediate medical attention have been identified. ");
-            case HIGH -> reasoning.append("Significant medical connections requiring prompt attention have been found. ");
-            case MEDIUM -> reasoning.append("Medical connections requiring follow-up have been identified. ");
-            case LOW -> reasoning.append("Some medical connections have been found that warrant monitoring. ");
+            case EMERGENCY ->
+                    reasoning.append("🚨 Emergency-level medical situation identified through advanced graph analysis. ");
+            case HIGH -> reasoning.append("⚠️ High-priority medical concerns detected via multi-pathway analysis. ");
+            case MEDIUM ->
+                    reasoning.append("📊 Moderate medical concerns identified through graph-based pattern detection. ");
+            case LOW -> reasoning.append("ℹ️ Medical patterns detected that warrant monitoring and follow-up. ");
         }
 
-        // הוספת מידע על גורמי סיכון
-        long riskFactorConnections = connections.stream()
-                .filter(conn -> conn.getType() == MedicalConnection.ConnectionType.RISK_FACTOR)
-                .count();
-
-        if (riskFactorConnections > 0) {
-            reasoning.append(String.format("Your personal risk factors (%d identified) may be contributing to these symptoms. ", riskFactorConnections));
+        //תובנות ספציפיות
+        if (!pathways.isEmpty()) {
+            int significantPathways = (int) pathways.stream()
+                    .filter(p -> p.getRiskScore() > 0.5)
+                    .count();
+            reasoning.append(String.format("Advanced pathway analysis revealed %d significant medical pathways. ", significantPathways));
         }
 
-        if (userContext.getOverallRiskScore() != null && userContext.getOverallRiskScore() > 0.5) {
-            reasoning.append("Your overall risk profile suggests closer medical monitoring may be beneficial. ");
+        if (riskPropagation.getTotalRiskScore() > 0.3) {
+            reasoning.append(String.format("Risk propagation analysis indicates elevated total risk (%.2f). ", riskPropagation.getTotalRiskScore()));
         }
 
-        reasoning.append("These recommendations are based on your personal medical profile and general medical knowledge. ");
-        reasoning.append("They are not a substitute for professional medical consultation.");
+        if (!communities.isEmpty()) {
+            reasoning.append(String.format("Medical community analysis identified %d interconnected groups of conditions. ", communities.size()));
+        }
+
+        if (!hubs.isEmpty()) {
+            Optional<MedicalGraphAnalyticsService.MedicalHub> topHub = hubs.stream()
+                    .max(Comparator.comparingDouble(MedicalGraphAnalyticsService.MedicalHub::getCentralityScore));
+            if (topHub.isPresent() && topHub.get().getCentralityScore() > 10) {
+                reasoning.append(String.format("Key medical hub identified: %s (influence: %s). ",
+                        topHub.get().getName(), topHub.get().getInfluenceLevel()));
+            }
+        }
+
+        reasoning.append("This analysis combines traditional medical knowledge with advanced graph-based pattern recognition for comprehensive assessment. ");
+        reasoning.append("Recommendations are based on your complete medical profile and interconnection patterns.");
 
         return reasoning.toString();
     }
 
-    /**
-     * פעולות מיידיות כולל המלצות לגורמי סיכון
-     */
-    private List<ImmediateAction> generateImmediateActionsWithRiskFactors(List<MedicalConnection> connections, TreatmentPlan.UrgencyLevel urgencyLevel, UserMedicalContext userContext) {
-        List<ImmediateAction> actions = generateImmediateActions(connections, urgencyLevel);
-
-        // הוספת המלצות ספציפיות לגורמי סיכון
-        for (UserMedicalEntity riskFactor : userContext.getRiskFactors()) {
-            String riskType = getRiskFactorType(riskFactor);
-            double riskWeight = getRiskFactorWeight(riskFactor);
-
-            if (riskWeight > 0.6) { // גורמי סיכון משמעותיים
-                ImmediateAction riskAction = createRiskFactorAction(riskType, riskWeight);
-                if (riskAction != null) {
-                    actions.add(riskAction);
-                }
-            }
-        }
-
-        return actions;
-    }
-
-    /**
-     * יצירת פעולה ספציפית לגורם סיכון
-     */
-    private ImmediateAction createRiskFactorAction(String riskType, double riskWeight) {
-        ImmediateAction action = new ImmediateAction();
-        action.setPriority(riskWeight > 0.8 ? 2 : 3);
-
-        switch (riskType) {
-            case "SMOKING" -> {
-                action.setType(ImmediateAction.ActionType.MONITOR_SYMPTOMS);
-                action.setDescription("Consider discussing smoking cessation with your doctor");
-                action.setReason("Smoking significantly increases health risks");
-                return action;
-            }
-            case "BMI" -> {
-                action.setType(ImmediateAction.ActionType.MONITOR_SYMPTOMS);
-                action.setDescription("Monitor symptoms and consider lifestyle modifications");
-                action.setReason("Weight management may help reduce symptoms");
-                return action;
-            }
-            case "BLOOD_PRESSURE" -> {
-                action.setType(ImmediateAction.ActionType.MONITOR_SYMPTOMS);
-                action.setDescription("Monitor blood pressure regularly");
-                action.setReason("High blood pressure requires ongoing monitoring");
-                return action;
-            }
-        }
-
-        return null;
-    }
-
-    // Helper methods
-    private String getRiskFactorType(UserMedicalEntity riskFactor) {
-        if (riskFactor.getAdditionalData() != null && riskFactor.getAdditionalData().get("risk_type") != null) {
-            return (String) riskFactor.getAdditionalData().get("risk_type");
-        }
-
-        String name = riskFactor.getName().toLowerCase();
-        if (name.contains("smok")) return "SMOKING";
-        if (name.contains("bmi") || name.contains("weight")) return "BMI";
-        if (name.contains("blood pressure") || name.contains("hypertension")) return "BLOOD_PRESSURE";
-        if (name.contains("age")) return "AGE_GROUP";
-        if (name.contains("family") && name.contains("heart")) return "FAMILY_HEART_DISEASE";
-        if (name.contains("family") && name.contains("cancer")) return "FAMILY_CANCER";
-        if (name.contains("stress")) return "STRESS";
-        if (name.contains("activity") || name.contains("exercise")) return "PHYSICAL_ACTIVITY";
-
-        return "OTHER";
-    }
-
-    private double getRiskFactorWeight(UserMedicalEntity riskFactor) {
-        if (riskFactor.getAdditionalData() != null && riskFactor.getAdditionalData().get("weight") != null) {
-            return (Double) riskFactor.getAdditionalData().get("weight");
-        }
-
-        // ברירת מחדל לפי חומרה
-        return switch (riskFactor.getSeverity() != null ? riskFactor.getSeverity().toLowerCase() : "medium") {
-            case "high" -> 0.8;
-            case "medium" -> 0.5;
-            case "low" -> 0.3;
-            default -> 0.5;
-        };
-    }
-
-    // שאר המתודות נשארות כמו קודם...
-    private List<MedicalConnection> findAllMedicalConnections(UserMedicalContext userContext, List<ExtractedSymptom> symptoms) {
-        List<MedicalConnection> allConnections = new ArrayList<>();
-        try {
-            List<MedicalConnection> sideEffects = pathfindingService.findMedicationSideEffects(userContext.getCurrentMedications(), symptoms);
-            allConnections.addAll(sideEffects);
-
-            List<MedicalConnection> diseaseSymptoms = pathfindingService.findDiseaseSymptoms(userContext.getActiveDiseases(), symptoms);
-            allConnections.addAll(diseaseSymptoms);
-
-            List<MedicalConnection> treatments = pathfindingService.findPossibleTreatments(symptoms);
-            allConnections.addAll(treatments);
-        } catch (Exception e) {
-            logger.error("Error finding medical connections: {}", e.getMessage(), e);
-        }
-        return allConnections;
-    }
-
-    private List<ImmediateAction> generateImmediateActions(List<MedicalConnection> connections, TreatmentPlan.UrgencyLevel urgencyLevel) {
+    //פעולות מיידיות
+    private List<ImmediateAction> generateImmediateActions(TreatmentPlan.UrgencyLevel urgencyLevel,
+                                                           List<MedicalGraphAnalyticsService.MedicalPathway> pathways,
+                                                           List<MedicalGraphAnalyticsService.MedicalHub> hubs,
+                                                           UserMedicalContext context) {
         List<ImmediateAction> actions = new ArrayList<>();
 
+        //פעולות דחופות
         if (urgencyLevel == TreatmentPlan.UrgencyLevel.EMERGENCY) {
             ImmediateAction emergency = new ImmediateAction();
             emergency.setType(ImmediateAction.ActionType.CALL_EMERGENCY);
             emergency.setDescription("Call emergency services immediately!");
-            emergency.setReason("Emergency symptoms requiring immediate treatment identified");
+            emergency.setReason("Critical medical pathways detected through graph analysis");
             emergency.setPriority(1);
             actions.add(emergency);
         }
 
-        List<MedicalConnection> sideEffects = connections.stream()
-                .filter(conn -> conn.getType() == MedicalConnection.ConnectionType.SIDE_EFFECT)
-                .filter(conn -> conn.getConfidence() > 0.7)
-                .collect(Collectors.toList());
-
-        for (MedicalConnection sideEffect : sideEffects) {
-            ImmediateAction action = new ImmediateAction();
-            action.setType(ImmediateAction.ActionType.STOP_MEDICATION);
-            action.setDescription("Consider consulting doctor about medication " + sideEffect.getFromEntity());
-            action.setReason("Suspected side effect");
-            action.setPriority(2);
-            actions.add(action);
+        // פעולות בהתבסס על Medical Hubs
+        for (MedicalGraphAnalyticsService.MedicalHub hub : hubs) {
+            if (hub.getCentralityScore() > 20 && "Medications".equals(hub.getType())) {
+                ImmediateAction hubAction = new ImmediateAction();
+                hubAction.setType(ImmediateAction.ActionType.MONITOR_SYMPTOMS);
+                hubAction.setDescription(String.format("Monitor for effects related to %s", hub.getName()));
+                hubAction.setReason(String.format("High-influence medication hub detected (%s influence)", hub.getInfluenceLevel()));
+                hubAction.setPriority(2);
+                hubAction.setMedicationName(hub.getName());
+                actions.add(hubAction);
+            }
         }
 
-        if (urgencyLevel == TreatmentPlan.UrgencyLevel.MEDIUM || urgencyLevel == TreatmentPlan.UrgencyLevel.LOW) {
+        //פעולות בהתבסס על מסלולים
+        pathways.stream()
+                .filter(p -> p.getRiskScore() > 0.7)
+                .limit(2)
+                .forEach(pathway -> {
+                    ImmediateAction pathwayAction = new ImmediateAction();
+                    pathwayAction.setType(ImmediateAction.ActionType.MONITOR_SYMPTOMS);
+                    pathwayAction.setDescription(String.format("Monitor pathway: %s", pathway.getTargetName()));
+                    pathwayAction.setReason(String.format("High-risk pathway detected (Risk: %.2f)", pathway.getRiskScore()));
+                    pathwayAction.setPriority(3);
+                    actions.add(pathwayAction);
+                });
+
+        // פעולה כללית של מעקב
+        if (urgencyLevel != TreatmentPlan.UrgencyLevel.EMERGENCY) {
             ImmediateAction monitor = new ImmediateAction();
             monitor.setType(ImmediateAction.ActionType.MONITOR_SYMPTOMS);
-            monitor.setDescription("Monitor symptoms and record changes");
-            monitor.setReason("Important to track symptom progression");
-            monitor.setPriority(3);
+            monitor.setDescription("Monitor symptoms and track any changes using graph-based pattern recognition");
+            monitor.setReason("Comprehensive medical pattern analysis suggests careful monitoring");
+            monitor.setPriority(4);
             actions.add(monitor);
         }
 
         return actions;
     }
 
-    private List<MedicalTest> generateRecommendedTestsWithRiskFactors(Set<ExtractedSymptom> symptoms, TreatmentPlan.UrgencyLevel urgencyLevel, UserMedicalContext userContext) {
-        List<MedicalTest> tests = new ArrayList<>();
+    //המרת מסלולים לקשרים רפואיים
+    private List<MedicalConnection> convertPathwaysToConnections(List<MedicalGraphAnalyticsService.MedicalPathway> pathways) {
+        return pathways.stream()
+                .map(pathway -> {
+                    MedicalConnection connection = new MedicalConnection();
+                    connection.setType(MedicalConnection.ConnectionType.RISK_FACTOR);
+                    connection.setFromEntity(pathway.getNodes().isEmpty() ? "Unknown" : pathway.getNodes().get(0).getName());
+                    connection.setToEntity(pathway.getTargetName());
+                    connection.setFromCui(pathway.getSourceCui());
+                    connection.setToCui(pathway.getTargetCui());
+                    connection.setConfidence(pathway.getConfidence());
+                    connection.setExplanation(pathway.getExplanation());
+                    return connection;
+                }).collect(Collectors.toList());
+    }
 
-        Map<String, MedicalTest.TestType> symptomToTest = Map.of(
-                "chest pain", MedicalTest.TestType.ECG,
-                "heart", MedicalTest.TestType.ECG,
-                "fever", MedicalTest.TestType.BLOOD_TEST,
-                "headache", MedicalTest.TestType.BLOOD_PRESSURE,
-                "pain", MedicalTest.TestType.BLOOD_TEST
+
+    private List<UserMedicalEntity> getAllUserEntities(UserMedicalContext context) {
+        List<UserMedicalEntity> entities = new ArrayList<>();
+        entities.addAll(context.getCurrentMedications());
+        entities.addAll(context.getActiveDiseases());
+        entities.addAll(context.getRiskFactors());
+        return entities;
+    }
+
+
+    private List<MedicalConnection> findBasicConnections(UserMedicalContext context, List<ExtractedSymptom> symptoms) {
+        List<MedicalConnection> connections = new ArrayList<>();
+        try {
+            connections.addAll(pathfindingService.findDiseaseSymptoms(context.getActiveDiseases(), symptoms));
+            connections.addAll(pathfindingService.findMedicationSideEffects(context.getCurrentMedications(), symptoms));
+            connections.addAll(pathfindingService.findPossibleTreatments(symptoms));
+        } catch (Exception e) {
+            logger.warn("Error finding basic connections: {}", e.getMessage(), e);
+        }
+        return connections;
+    }
+
+    //סימפטומים דחופים
+    private boolean hasEmergencySymptoms(Set<ExtractedSymptom> symptoms) {
+        Set<String> emergencyKeywords = Set.of(
+                "chest pain", "difficulty breathing", "severe pain", "bleeding",
+                "unconscious", "seizure", "stroke", "heart attack"
         );
 
-        Set<MedicalTest.TestType> recommendedTestTypes = new HashSet<>();
+        return symptoms.stream()
+                .anyMatch(symptom -> emergencyKeywords.stream()
+                        .anyMatch(keyword -> symptom.getName().toLowerCase().contains(keyword)));
+    }
 
+    private List<MedicalTest> generateRecommendedTests(Set<ExtractedSymptom> symptoms,
+                                                       List<MedicalGraphAnalyticsService.MedicalPathway> pathways,
+                                                       List<MedicalGraphAnalyticsService.MedicalCommunity> communities,
+                                                       TreatmentPlan.UrgencyLevel urgencyLevel) {
+        Set<MedicalTest.TestType> recommendedTests = new HashSet<>();
+
+        // בדיקות על בסיס סימפטומים
         for (ExtractedSymptom symptom : symptoms) {
             String symptomName = symptom.getName().toLowerCase();
-            for (Map.Entry<String, MedicalTest.TestType> entry : symptomToTest.entrySet()) {
-                if (symptomName.contains(entry.getKey())) {
-                    recommendedTestTypes.add(entry.getValue());
-                }
+            if (symptomName.contains("chest pain")) {
+                recommendedTests.add(MedicalTest.TestType.ECG);
+                recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
+            } else if (symptomName.contains("heart")) {
+                recommendedTests.add(MedicalTest.TestType.ECG);
+            } else if (symptomName.contains("fever")) {
+                recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
+                recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
+            } else if (symptomName.contains("headache")) {
+                recommendedTests.add(MedicalTest.TestType.BLOOD_PRESSURE);
+            } else if (symptomName.contains("pain")) {
+                recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
             }
         }
 
         // הוספת בדיקות מותאמות לגורמי סיכון
-        for (UserMedicalEntity riskFactor : userContext.getRiskFactors()) {
-            String riskType = getRiskFactorType(riskFactor);
-            if (getRiskFactorWeight(riskFactor) > 0.6) {
-                switch (riskType) {
-                    case "BMI" -> recommendedTestTypes.add(MedicalTest.TestType.BLOOD_TEST);
-                    case "BLOOD_PRESSURE" -> recommendedTestTypes.add(MedicalTest.TestType.BLOOD_PRESSURE);
-                    case "FAMILY_HEART_DISEASE" -> recommendedTestTypes.add(MedicalTest.TestType.ECG);
-                }
+        for (ExtractedSymptom symptom : symptoms) {
+            if (symptom.getName().toLowerCase().contains("chest pain")) {
+                recommendedTests.add(MedicalTest.TestType.ECG);
+                recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
+            }
+            if (symptom.getName().toLowerCase().contains("fever")) {
+                recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
             }
         }
+
+        // בדיקות נוספות בהתבסס על מסלולים מתקדמים
+        pathways.stream()
+                .filter(p -> p.getRiskScore() > 0.6)
+                .forEach(pathway -> {
+                    // לוגיקה להמלצת בדיקות בהתבסס על סוג המסלול
+                    if (pathway.getNodes().stream().anyMatch(n -> "Disease".equals(n.getType()))) {
+                        recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
+                    }
+                });
 
         String urgency = switch (urgencyLevel) {
             case EMERGENCY -> "ASAP";
@@ -616,74 +410,98 @@ public class TreatmentRecommendationEngine {
             case LOW -> "Within month";
         };
 
-        for (MedicalTest.TestType testType : recommendedTestTypes) {
-            MedicalTest test = new MedicalTest();
-            test.setType(testType);
-            test.setDescription(testType.getDescription());
-            test.setReason("Test relevant to reported symptoms and risk factors");
-            test.setUrgency(urgency);
-            tests.add(test);
-        }
-
-        return tests;
+        return recommendedTests.stream()
+                .map(testType -> {
+                    MedicalTest test = new MedicalTest();
+                    test.setType(testType);
+                    test.setDescription(testType.getDescription());
+                    test.setReason("Recommended based on advanced graph analysis and symptom patterns");
+                    test.setUrgency(urgency);
+                    return test;
+                })
+                .collect(Collectors.toList());
     }
 
-    private List<DoctorVisit> generateDoctorVisitsWithRiskFactors(TreatmentPlan.UrgencyLevel urgencyLevel, List<MedicalConnection> connections, UserMedicalContext userContext) {
+    private List<DoctorVisit> generateDoctorVisits(TreatmentPlan.UrgencyLevel urgencyLevel,
+                                                   List<MedicalGraphAnalyticsService.MedicalCommunity> communities,
+                                                   List<MedicalGraphAnalyticsService.MedicalHub> hubs) {
         List<DoctorVisit> visits = new ArrayList<>();
 
         String urgency = switch (urgencyLevel) {
-            case EMERGENCY -> "Immediately";
-            case HIGH -> "Same day";
-            case MEDIUM -> "Within few days";
-            case LOW -> "Within week";
+            case EMERGENCY -> "Emergency";
+            case HIGH -> "High";
+            case MEDIUM -> "Medium";
+            case LOW -> "Low";
         };
 
         if (urgencyLevel == TreatmentPlan.UrgencyLevel.EMERGENCY) {
             DoctorVisit emergency = new DoctorVisit();
             emergency.setType(DoctorVisit.DoctorType.EMERGENCY_ROOM);
-            emergency.setReason("Emergency symptoms");
+            emergency.setReason("Emergency situation identified through advanced medical graph analysis");
             emergency.setUrgency(urgency);
             visits.add(emergency);
         } else {
             DoctorVisit familyDoctor = new DoctorVisit();
             familyDoctor.setType(DoctorVisit.DoctorType.FAMILY_DOCTOR);
-            familyDoctor.setReason("Symptom evaluation and risk factor management");
+            familyDoctor.setReason("Comprehensive evaluation recommended based on graph-based medical pattern analysis");
             familyDoctor.setUrgency(urgency);
             visits.add(familyDoctor);
 
-            // המלצה לרופא מומחה לפי גורמי סיכון
-            boolean hasHeartRisk = userContext.getRiskFactors().stream()
-                    .anyMatch(rf -> getRiskFactorType(rf).contains("HEART") || getRiskFactorType(rf).equals("BLOOD_PRESSURE"));
-
-            if (hasHeartRisk && (urgencyLevel == TreatmentPlan.UrgencyLevel.HIGH || urgencyLevel == TreatmentPlan.UrgencyLevel.MEDIUM)) {
-                DoctorVisit cardiologist = new DoctorVisit();
-                cardiologist.setType(DoctorVisit.DoctorType.CARDIOLOGIST);
-                cardiologist.setReason("Heart-related risk factors require specialist evaluation");
-                cardiologist.setUrgency("Within 1-2 weeks");
-                visits.add(cardiologist);
-            }
+            // המלצות  בהתבסס על Medical Hubs
+            hubs.stream()
+                    .filter(hub -> hub.getCentralityScore() > 15)
+                    .limit(2)
+                    .forEach(hub -> {
+                        DoctorVisit specialist = new DoctorVisit();
+                        specialist.setType(DoctorVisit.DoctorType.CARDIOLOGIST); // דוגמה - צריך לוגיקה מתקדמת יותר**************
+                        specialist.setReason(String.format("Specialist consultation recommended due to high-influence medical factor: %s", hub.getName()));
+                        specialist.setUrgency("Within 1-2 weeks");
+                        visits.add(specialist);
+                    });
         }
-
         return visits;
     }
 
-    private Map<String, Object> buildComprehensiveAdditionalInfo(UserMedicalContext userContext, List<MedicalConnection> connections) {
+    private Map<String, Object> buildAdditionalInfo(UserMedicalContext userContext,
+                                                    List<MedicalGraphAnalyticsService.MedicalPathway> pathways,
+                                                    MedicalGraphAnalyticsService.RiskPropagationResult riskPropagation,
+                                                    List<MedicalGraphAnalyticsService.MedicalCommunity> communities,
+                                                    List<MedicalGraphAnalyticsService.MedicalHub> hubs) {
         Map<String, Object> info = new HashMap<>();
 
+        //מידע בסיסי
+        info.put("analysisTimestamp", System.currentTimeMillis());
+        info.put("analysisType", "Advanced Graph-Based Medical Analysis");
         info.put("userRiskLevel", userContext.getRiskLevel());
         info.put("userRiskScore", userContext.getOverallRiskScore());
-        info.put("totalConnections", connections.size());
-        info.put("riskFactorCount", userContext.getRiskFactors().size());
-        info.put("activeMedicationsCount", userContext.getCurrentMedications().size());
-        info.put("activeDiseasesCount", userContext.getActiveDiseases().size());
-        info.put("analysisTimestamp", System.currentTimeMillis());
 
-        // פירוט גורמי הסיכון המשמעותיים
-        List<String> significantRiskFactors = userContext.getRiskFactors().stream()
-                .filter(rf -> getRiskFactorWeight(rf) > 0.6)
-                .map(UserMedicalEntity::getName)
+        //תוצאות ניתוח הגרף
+        info.put("advancedPathwaysCount", pathways.size());
+        info.put("medicalCommunitiesCount", communities.size());
+        info.put("medicalHubsCount", hubs.size());
+        info.put("totalRiskPropagation", riskPropagation.getTotalRiskScore());
+
+        //מסלולים משמעותיים
+        List<String> significantPathways = pathways.stream()
+                .filter(p -> p.getRiskScore() > 0.5)
+                .map(MedicalGraphAnalyticsService.MedicalPathway::getExplanation)
                 .collect(Collectors.toList());
-        info.put("significantRiskFactors", significantRiskFactors);
+        info.put("significantPathways", significantPathways);
+
+        // פירוט Medical Hubs
+        List<String> topHubs = hubs.stream()
+                .filter(h -> h.getCentralityScore() > 10)
+                .limit(3)
+                .map(h -> h.getName() + " (" + h.getInfluenceLevel() + ")")
+                .collect(Collectors.toList());
+        info.put("topMedicalHubs", topHubs);
+
+        // פירוט קהילות
+        List<String> communityDescriptions = communities.stream()
+                .limit(3)
+                .map(MedicalGraphAnalyticsService.MedicalCommunity::getDescription)
+                .collect(Collectors.toList());
+        info.put("medicalCommunities", communityDescriptions);
 
         return info;
     }
@@ -693,13 +511,13 @@ public class TreatmentRecommendationEngine {
 
         TreatmentPlan emergencyPlan = new TreatmentPlan();
         emergencyPlan.setUrgencyLevel(TreatmentPlan.UrgencyLevel.MEDIUM);
-        emergencyPlan.setMainConcern("Unable to complete full analysis - medical consultation recommended");
-        emergencyPlan.setReasoning("An error occurred during analysis. Medical consultation is recommended for proper evaluation.");
+        emergencyPlan.setMainConcern("Unable to complete advanced analysis - medical consultation recommended");
+        emergencyPlan.setReasoning("An error occurred during advanced graph analysis. Traditional medical consultation is recommended for proper evaluation.");
 
         ImmediateAction action = new ImmediateAction();
         action.setType(ImmediateAction.ActionType.SEEK_IMMEDIATE_CARE);
         action.setDescription("Consult healthcare provider for proper evaluation");
-        action.setReason("Complete analysis could not be performed");
+        action.setReason("Advanced analysis could not be completed");
         action.setPriority(1);
 
         emergencyPlan.setImmediateActions(List.of(action));
@@ -712,10 +530,11 @@ public class TreatmentRecommendationEngine {
 
         emergencyPlan.setRecommendedTests(new ArrayList<>());
         emergencyPlan.setFoundConnections(new ArrayList<>());
-        emergencyPlan.setAdditionalInfo(Map.of("error", "Analysis incomplete", "symptomsCount", symptoms.size()));
+        emergencyPlan.setAdditionalInfo(Map.of("error", "Advanced analysis incomplete", "symptomsCount", symptoms.size()));
 
         return emergencyPlan;
     }
+
 
     public UserMedicalContext getUserMedicalContext(UUID userId) {
         return medicalContextService.getUserMedicalContext(userId);

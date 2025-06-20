@@ -488,13 +488,14 @@
 #         logger.error(f"Failed to start server: {e}")
 #         print(f"Failed to start server: {e}")
 #         exit(1)
+'''
 """
 שרת API משולב לניתוח סימפטומים מטקסט ותמונות
 משתמש במחלקות ייעודיות נפרדות לכל סוג ניתוח
 """
 from flask import Flask, request, jsonify
-from text_analyzer import TextAnalyzer
-from image_analyzer import ImageAnalyzer
+from text_analyzer1 import TextAnalyzer
+from image_analyzer1 import ImageAnalyzer
 import logging
 import os
 import time
@@ -1042,4 +1043,345 @@ if __name__ == '__main__':
     except Exception as e:
         logger.error(f"שגיאה בהפעלת השרת: {e}")
         print(f"שגיאה בהפעלת השרת: {e}")
+        exit(1)
+'''
+"""
+שרת API מינימלי לניתוח סימפטומים מטקסט ותמונות
+"""
+from flask import Flask, request, jsonify
+from text_analyzer import TextAnalyzer
+from image_analyzer import ImageAnalyzer
+import logging
+import base64
+import io
+from PIL import Image
+
+# הגדרת logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# מנתחים גלובליים
+text_analyzer = None
+image_analyzer = None
+
+
+def initialize_models():
+    """אתחול המודלים פעם אחת בהפעלת השרת"""
+    global text_analyzer, image_analyzer
+
+    try:
+        logger.info("מתחיל אתחול המודלים...")
+
+        # אתחול Text Analyzer
+        text_analyzer = TextAnalyzer()
+        text_analyzer.load_model()
+        logger.info("Text Analyzer נטען בהצלחה")
+
+        # אתחול Image Analyzer
+        image_analyzer = ImageAnalyzer()
+        image_analyzer.load_model()
+        logger.info("Image Analyzer נטען בהצלחה")
+
+        logger.info("כל המודלים נטענו בהצלחה!")
+
+    except Exception as e:
+        logger.error(f"שגיאה באתחול המודלים: {e}")
+        raise
+
+
+# =============================================================================
+# HEALTH & STATUS
+# =============================================================================
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """בדיקת תקינות השרת"""
+    text_ready = text_analyzer is not None and text_analyzer.is_loaded
+    image_ready = image_analyzer is not None and image_analyzer.is_loaded
+
+    return jsonify({
+        "status": "healthy" if (text_ready and image_ready) else "partial",
+        "text_analyzer": text_ready,
+        "image_analyzer": image_ready
+    })
+
+
+# =============================================================================
+# TEXT ANALYSIS
+# =============================================================================
+
+@app.route('/text/analyze', methods=['POST'])
+def analyze_text():
+    """
+    ניתוח טקסט לחילוץ סימפטומים
+
+    Body: {"text": "I have headache and fever"}
+    """
+    try:
+        if not text_analyzer or not text_analyzer.is_loaded:
+            return jsonify({"error": "Text analyzer not ready"}), 503
+
+        data = request.get_json()
+        if not data or 'text' not in data:
+            return jsonify({"error": "Missing 'text' field"}), 400
+
+        text = data['text'].strip()
+        if not text:
+            return jsonify({"error": "Text cannot be empty"}), 400
+
+        # ניתוח
+        symptoms = text_analyzer.extract_symptoms(text)
+
+        return jsonify({
+            "success": True,
+            "symptoms": symptoms,
+            "count": len(symptoms)
+        })
+
+    except Exception as e:
+        logger.error(f"Error in text analysis: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/text/entities', methods=['POST'])
+def get_all_text_entities():
+    """
+    קבלת כל הישויות מטקסט (לא רק סימפטומים)
+
+    Body: {"text": "I have headache and fever"}
+    """
+    try:
+        if not text_analyzer or not text_analyzer.is_loaded:
+            return jsonify({"error": "Text analyzer not ready"}), 503
+
+        data = request.get_json()
+        if not data or 'text' not in data:
+            return jsonify({"error": "Missing 'text' field"}), 400
+
+        text = data['text'].strip()
+        if not text:
+            return jsonify({"error": "Text cannot be empty"}), 400
+
+        # קבלת כל הישויות
+        all_entities = text_analyzer.get_all_entities(text)
+
+        return jsonify({
+            "success": True,
+            "entities": all_entities
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting all entities: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# =============================================================================
+# IMAGE ANALYSIS
+# =============================================================================
+
+def process_image_input(image_data):
+    """עיבוד קלט תמונה - base64 או bytes"""
+    try:
+        if isinstance(image_data, str):
+            # אם זה base64 string
+            image_bytes = base64.b64decode(image_data)
+        else:
+            # אם זה כבר bytes
+            image_bytes = image_data
+
+        # המרה ל-PIL Image
+        image = Image.open(io.BytesIO(image_bytes))
+        return image
+
+    except Exception as e:
+        raise Exception(f"Error processing image: {e}")
+
+
+@app.route('/image/analyze', methods=['POST'])
+def analyze_image():
+    """
+    ניתוח תמונה לזיהוי מצבי עור
+
+    JSON Body: {"image": "base64_data"}
+    או Form-data: files={'image': file}
+    """
+    try:
+        if not image_analyzer or not image_analyzer.is_loaded:
+            return jsonify({"error": "Image analyzer not ready"}), 503
+
+        image_data = None
+
+        # בדיקה אם זה JSON או form-data
+        if request.is_json:
+            data = request.get_json()
+            if not data or 'image' not in data:
+                return jsonify({"error": "Missing 'image' field"}), 400
+            image_data = data['image']
+
+        else:
+            # form-data עם קובץ
+            if 'image' not in request.files:
+                return jsonify({"error": "No image file provided"}), 400
+
+            file = request.files['image']
+            if file.filename == '':
+                return jsonify({"error": "No image selected"}), 400
+
+            image_data = file.read()
+
+        # עיבוד התמונה
+        pil_image = process_image_input(image_data)
+
+        # ניתוח
+        results = image_analyzer.analyze_image(pil_image)
+
+        return jsonify({
+            "success": True,
+            "predictions": results,
+            "count": len(results)
+        })
+
+    except Exception as e:
+        logger.error(f"Error in image analysis: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/image/top_predictions', methods=['POST'])
+def get_top_image_predictions():
+    """
+    קבלת המצבים הסבירים ביותר מתמונה
+
+    Body: {"image": "base64_data", "top_k": 5}
+    """
+    try:
+        if not image_analyzer or not image_analyzer.is_loaded:
+            return jsonify({"error": "Image analyzer not ready"}), 503
+
+        data = request.get_json()
+        if not data or 'image' not in data:
+            return jsonify({"error": "Missing 'image' field"}), 400
+
+        top_k = data.get('top_k', 5)
+
+        # עיבוד התמונה
+        pil_image = process_image_input(data['image'])
+
+        # ניתוח
+        results = image_analyzer.analyze_image(pil_image)
+
+        # החזרת top_k תוצאות
+        top_results = results[:top_k]
+
+        return jsonify({
+            "success": True,
+            "top_predictions": top_results,
+            "requested_count": top_k,
+            "returned_count": len(top_results)
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting top predictions: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# =============================================================================
+# COMBINED ANALYSIS
+# =============================================================================
+
+@app.route('/analyze', methods=['POST'])
+def analyze_combined():
+    """
+    ניתוח משולב של טקסט ותמונה
+
+    Body: {
+        "text": "I have headache",
+        "image": "base64_data"  // אופציונלי
+    }
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        results = {"success": True}
+
+        # ניתוח טקסט
+        if 'text' in data and data['text'].strip():
+            if text_analyzer and text_analyzer.is_loaded:
+                text_symptoms = text_analyzer.extract_symptoms(data['text'].strip())
+                results['text_symptoms'] = text_symptoms
+                results['text_count'] = len(text_symptoms)
+            else:
+                results['text_error'] = "Text analyzer not ready"
+
+        # ניתוח תמונה
+        if 'image' in data and data['image']:
+            if image_analyzer and image_analyzer.is_loaded:
+                try:
+                    pil_image = process_image_input(data['image'])
+                    image_results = image_analyzer.analyze_image(pil_image)
+                    # לקחת רק את ה-5 הראשונים
+                    results['image_predictions'] = image_results[:5]
+                    results['image_count'] = len(image_results[:5])
+                except Exception as e:
+                    results['image_error'] = f"Error processing image: {str(e)}"
+            else:
+                results['image_error'] = "Image analyzer not ready"
+
+        return jsonify(results)
+
+    except Exception as e:
+        logger.error(f"Error in combined analysis: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# =============================================================================
+# ERROR HANDLERS
+# =============================================================================
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({"error": "Endpoint not found"}), 404
+
+
+@app.errorhandler(413)
+def too_large(error):
+    return jsonify({"error": "File too large (max 16MB)"}), 413
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({"error": "Internal server error"}), 500
+
+
+# =============================================================================
+# MAIN
+# =============================================================================
+
+if __name__ == '__main__':
+    try:
+        print("מפעיל שרת ניתוח סימפטומים...")
+        print("=" * 50)
+
+        # אתחול המודלים
+        initialize_models()
+
+        print("שרת מוכן!")
+        print("Endpoints:")
+        print("  GET  /health - בדיקת תקינות")
+        print("  POST /text/analyze - ניתוח טקסט (סימפטומים)")
+        print("  POST /text/entities - כל הישויות מטקסט")
+        print("  POST /image/analyze - ניתוח תמונה מלא")
+        print("  POST /image/top_predictions - top predictions מתמונה")
+        print("  POST /analyze - ניתוח משולב")
+        print("=" * 50)
+
+        app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+
+    except Exception as e:
+        logger.error(f"שגיאה בהפעלת השרת: {e}")
+        print(f"שגיאה: {e}")
         exit(1)

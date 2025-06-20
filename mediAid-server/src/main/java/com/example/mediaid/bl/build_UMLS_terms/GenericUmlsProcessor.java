@@ -80,6 +80,7 @@ public abstract class GenericUmlsProcessor<T extends BaseUmlsEntity> {
             }
         }
 
+        //השארית
         if(currentBatch.size() > 0){
             batches.add(currentBatch);
         }

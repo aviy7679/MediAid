@@ -36,10 +36,6 @@ public class JwtUtil {
         return getClaimsFromToken(token).getSubject();
     }
 
-    public String extractEmail(String token) {
-        return (String) getClaimsFromToken(token).get("email");
-    }
-
     public UUID extractUserId(String token) {
         String userIdStr = (String) getClaimsFromToken(token).get("userId");
         return UUID.fromString(userIdStr);
