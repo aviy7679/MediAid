@@ -1,0 +1,17 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# העתקת package.json
+COPY package*.json .
+
+# התקנת dependencies
+RUN npm install
+
+# העתקת הקוד
+COPY . .
+
+EXPOSE 3000
+
+# הרצה במצב פיתוח
+CMD ["npm", "run", "dev"]
