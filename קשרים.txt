@@ -1,4 +1,5 @@
-medication->disease      TREATS
+medication->disease                           TREATS
 disease->symptom        CAUSES_SYMPTOM
 medication->symptom    CAUSES_SIDE_EFFECT
-risk_factor->disease          INCREASES_RISK_OF
+risk_factor->disease      INCREASES_RISK_OF
+symptom/disease->test             REQUIRES_TEST
