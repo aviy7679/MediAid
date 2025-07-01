@@ -32,11 +32,11 @@ public class RelationshipTypes {
     public static final String INHIBITS = "INHIBITS";                 // תרופה → פונקציה ביולוגית
     public static final String STIMULATES = "STIMULATES";             // תרופה → פונקציה ביולוגית
 
-    // קשרים חדשים שהוספת
     public static final String CAUSED_BY = "CAUSED_BY";
     public static final String CAUSES = "CAUSES";
     public static final String HAS_ACTIVE_INGREDIENT = "HAS_ACTIVE_INGREDIENT";
     public static final String ACTIVE_INGREDIENT_OF = "ACTIVE_INGREDIENT_OF";
+    public static final String REQUIRES_TEST = "REQUIRES_TEST";
 
     // מיפוי מקשרי UMLS לקשרים שלנו - הגרסה המלאה והמתוקנת
     public static final Map<String, String> UMLS_TO_NEO4J_RELATIONSHIPS = new HashMap<>();

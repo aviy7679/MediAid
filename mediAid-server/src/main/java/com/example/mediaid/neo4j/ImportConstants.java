@@ -84,6 +84,12 @@ public class ImportConstants {
         UMLS_TO_NEO4J_RELATIONSHIPS.put("has_method", "HAS_METHOD");
         UMLS_TO_NEO4J_RELATIONSHIPS.put("measurement_of", RelationshipTypes.DIAGNOSES);
         UMLS_TO_NEO4J_RELATIONSHIPS.put("measured_by", RelationshipTypes.DIAGNOSED_BY);
+
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("requires_test", RelationshipTypes.REQUIRES_TEST);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("test_for", RelationshipTypes.REQUIRES_TEST);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("indicated_test", RelationshipTypes.REQUIRES_TEST);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("recommend_test", RelationshipTypes.REQUIRES_TEST);
+        UMLS_TO_NEO4J_RELATIONSHIPS.put("suggests_test", RelationshipTypes.REQUIRES_TEST);
     }
 
 

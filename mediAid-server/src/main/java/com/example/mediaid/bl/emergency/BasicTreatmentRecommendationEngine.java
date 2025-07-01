@@ -363,7 +363,27 @@ public class BasicTreatmentRecommendationEngine {
     private List<MedicalTest> generateRecommendedTests(Set<ExtractedSymptom> symptoms,
                                                        TreatmentPlan.UrgencyLevel urgencyLevel,
                                                        UserMedicalContext userContext) {
-        List<MedicalTest> tests = new ArrayList<>();
+
+        // נסה לשלוף בדיקות מהגרף ראשית
+        List<MedicalTest> testsFromGraph = pathfindingService.findRecommendedTests(
+                symptoms, userContext.getActiveDiseases(), urgencyLevel);
+
+        // אם נמצאו בדיקות מהגרף - השתמש בהן
+        if (!testsFromGraph.isEmpty()) {
+            logger.info("🩺 Using {} tests from graph", testsFromGraph.size());
+            return testsFromGraph;
+        }
+
+        // אחרת - חזור ללוגיקה הישנה כגיבוי
+        logger.info("🩺 No tests from graph, using legacy logic");
+        return generateLegacyTests(symptoms, urgencyLevel, userContext);
+    }
+
+    // הלוגיקה הישנה - כגיבוי
+    private List<MedicalTest> generateLegacyTests(Set<ExtractedSymptom> symptoms,
+                                                  TreatmentPlan.UrgencyLevel urgencyLevel,
+                                                  UserMedicalContext userContext) {
+        Set<MedicalTest.TestType> recommendedTests = new HashSet<>();
 
         Map<String, MedicalTest.TestType> symptomToTest = Map.of(
                 "chest pain", MedicalTest.TestType.ECG,
@@ -373,14 +393,12 @@ public class BasicTreatmentRecommendationEngine {
                 "pain", MedicalTest.TestType.BLOOD_TEST
         );
 
-        Set<MedicalTest.TestType> recommendedTestTypes = new HashSet<>();
-
         // בדיקות על בסיס סימפטומים
         for (ExtractedSymptom symptom : symptoms) {
             String symptomName = symptom.getName().toLowerCase();
             for (Map.Entry<String, MedicalTest.TestType> entry : symptomToTest.entrySet()) {
                 if (symptomName.contains(entry.getKey())) {
-                    recommendedTestTypes.add(entry.getValue());
+                    recommendedTests.add(entry.getValue());
                 }
             }
         }
@@ -390,9 +408,9 @@ public class BasicTreatmentRecommendationEngine {
             String riskType = riskFactorService.getRiskFactorType(riskFactor);
             if (riskFactorService.getRiskFactorWeight(riskFactor) > 0.6) {
                 switch (riskType) {
-                    case "BMI" -> recommendedTestTypes.add(MedicalTest.TestType.BLOOD_TEST);
-                    case "BLOOD_PRESSURE" -> recommendedTestTypes.add(MedicalTest.TestType.BLOOD_PRESSURE);
-                    case "FAMILY_HEART_DISEASE" -> recommendedTestTypes.add(MedicalTest.TestType.ECG);
+                    case "BMI" -> recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
+                    case "BLOOD_PRESSURE" -> recommendedTests.add(MedicalTest.TestType.BLOOD_PRESSURE);
+                    case "FAMILY_HEART_DISEASE" -> recommendedTests.add(MedicalTest.TestType.ECG);
                 }
             }
         }
@@ -404,16 +422,16 @@ public class BasicTreatmentRecommendationEngine {
             case LOW -> "Within month";
         };
 
-        for (MedicalTest.TestType testType : recommendedTestTypes) {
-            MedicalTest test = new MedicalTest();
-            test.setType(testType);
-            test.setDescription(testType.getDescription());
-            test.setReason("Test relevant to reported symptoms and risk factors");
-            test.setUrgency(urgency);
-            tests.add(test);
-        }
-
-        return tests;
+        return recommendedTests.stream()
+                .map(testType -> {
+                    MedicalTest test = new MedicalTest();
+                    test.setType(testType);
+                    test.setDescription(testType.getDescription());
+                    test.setReason("Test recommended based on analysis and risk factors");
+                    test.setUrgency(urgency);
+                    return test;
+                })
+                .collect(Collectors.toList());
     }
 
     /**

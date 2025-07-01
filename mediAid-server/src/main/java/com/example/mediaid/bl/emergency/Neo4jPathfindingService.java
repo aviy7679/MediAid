@@ -1,8 +1,6 @@
 package com.example.mediaid.bl.emergency;
 
-import com.example.mediaid.dto.emergency.ExtractedSymptom;
-import com.example.mediaid.dto.emergency.MedicalConnection;
-import com.example.mediaid.dto.emergency.UserMedicalEntity;
+import com.example.mediaid.dto.emergency.*;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Session;
 import org.slf4j.Logger;
@@ -10,10 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 //מסלולים ושאילתות neo4j
 @Service
@@ -191,5 +186,86 @@ public class Neo4jPathfindingService {
         }
 
         return paths;
+    }
+
+    public List<MedicalTest> findRecommendedTests(Set<ExtractedSymptom> symptoms,
+                                                  List<UserMedicalEntity> diseases,
+                                                  TreatmentPlan.UrgencyLevel urgencyLevel) {
+        List<MedicalTest> tests = new ArrayList<>();
+
+        logger.debug("🔍 Finding recommended tests from graph for {} symptoms and {} diseases",
+                symptoms.size(), diseases.size());
+
+        try (Session session = neo4jDriver.session()) {
+            // שליפה מהגרף: סימפטומים ומחלות -> בדיקות
+            String testQuery = """
+                MATCH (source)-[r:REQUIRES_TEST]->(t:Test)
+                WHERE source.cui IN $cuis
+                RETURN t.cui as testCui, t.name as testName, 
+                       r.weight as confidence, source.name as sourceName,
+                       coalesce(r.urgency, 'medium') as urgency
+                ORDER BY r.weight DESC
+                LIMIT 10
+                """;
+
+            // איסוף כל ה-CUIs
+            Set<String> allCuis = new HashSet<>();
+            symptoms.forEach(s -> allCuis.add(s.getCui()));
+            diseases.forEach(d -> allCuis.add(d.getCui()));
+
+            if (allCuis.isEmpty()) {
+                return tests;
+            }
+
+            var result = session.readTransaction(tx ->
+                    tx.run(testQuery, Map.of("cuis", new ArrayList<>(allCuis))));
+
+            // המרה ל-MedicalTest
+            result.forEachRemaining(record -> {
+                MedicalTest test = new MedicalTest();
+                String testName = record.get("testName").asString();
+
+                // מיפוי פשוט לסוג בדיקה
+                test.setType(mapToTestType(testName));
+                test.setDescription(testName);
+                test.setReason("Recommended for: " + record.get("sourceName").asString());
+                test.setUrgency(determineUrgency(record.get("confidence").asDouble(), urgencyLevel));
+
+                tests.add(test);
+                logger.debug("Found test: {} (confidence: {})", testName, record.get("confidence").asDouble());
+            });
+
+        } catch (Exception e) {
+            logger.error("Error finding tests from graph: {}", e.getMessage());
+        }
+
+        logger.debug("🔍 Found {} tests from graph", tests.size());
+        return tests;
+    }
+
+    // פונקציות עזר פשוטות
+    private MedicalTest.TestType mapToTestType(String testName) {
+        String lower = testName.toLowerCase();
+        if (lower.contains("ecg") || lower.contains("ekg")) return MedicalTest.TestType.ECG;
+        if (lower.contains("blood") || lower.contains("cbc")) return MedicalTest.TestType.BLOOD_TEST;
+        if (lower.contains("pressure")) return MedicalTest.TestType.BLOOD_PRESSURE;
+        if (lower.contains("x-ray") || lower.contains("chest")) return MedicalTest.TestType.XRAY;
+        if (lower.contains("ultrasound")) return MedicalTest.TestType.ULTRASOUND;
+        if (lower.contains("ct")) return MedicalTest.TestType.CT_SCAN;
+        if (lower.contains("mri")) return MedicalTest.TestType.MRI;
+        if (lower.contains("urine")) return MedicalTest.TestType.URINE_TEST;
+        if (lower.contains("glucose") || lower.contains("sugar")) return MedicalTest.TestType.BLOOD_SUGAR;
+        return MedicalTest.TestType.BLOOD_TEST; // ברירת מחדל
+    }
+
+    private String determineUrgency(double confidence, TreatmentPlan.UrgencyLevel globalUrgency) {
+        // אם הדחיפות הכללית גבוהה, נעדכן בהתאם
+        if (globalUrgency == TreatmentPlan.UrgencyLevel.EMERGENCY) return "ASAP";
+        if (globalUrgency == TreatmentPlan.UrgencyLevel.HIGH) return "Within 24h";
+
+        // אחרת, על בסיס confidence
+        if (confidence >= 0.8) return "Within 24h";
+        if (confidence >= 0.6) return "Within week";
+        return "Within month";
     }
 }

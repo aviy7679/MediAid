@@ -362,9 +362,29 @@ public class TreatmentRecommendationEngine {
                                                        List<MedicalGraphAnalyticsService.MedicalPathway> pathways,
                                                        List<MedicalGraphAnalyticsService.MedicalCommunity> communities,
                                                        TreatmentPlan.UrgencyLevel urgencyLevel) {
+
+        // נסה לשלוף בדיקות מהגרף ראשית
+        List<UserMedicalEntity> userDiseases = getAllUserEntities(getCurrentUserContext()).stream()
+                .filter(entity -> "disease".equals(entity.getType()))
+                .collect(Collectors.toList());
+
+        List<MedicalTest> testsFromGraph = pathfindingService.findRecommendedTests(symptoms, userDiseases, urgencyLevel);
+
+        // אם נמצאו בדיקות מהגרף - השתמש בהן
+        if (!testsFromGraph.isEmpty()) {
+            logger.info("🩺 Using {} tests from graph", testsFromGraph.size());
+            return testsFromGraph;
+        }
+
+        // אחרת - חזור ללוגיקה הישנה כגיבוי
+        logger.info("🩺 No tests from graph, using legacy logic");
+        return generateLegacyTests(symptoms, urgencyLevel);
+    }
+
+    // הלוגיקה הישנה - כגיבוי
+    private List<MedicalTest> generateLegacyTests(Set<ExtractedSymptom> symptoms, TreatmentPlan.UrgencyLevel urgencyLevel) {
         Set<MedicalTest.TestType> recommendedTests = new HashSet<>();
 
-        // בדיקות על בסיס סימפטומים
         for (ExtractedSymptom symptom : symptoms) {
             String symptomName = symptom.getName().toLowerCase();
             if (symptomName.contains("chest pain")) {
@@ -374,34 +394,12 @@ public class TreatmentRecommendationEngine {
                 recommendedTests.add(MedicalTest.TestType.ECG);
             } else if (symptomName.contains("fever")) {
                 recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
-                recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
             } else if (symptomName.contains("headache")) {
                 recommendedTests.add(MedicalTest.TestType.BLOOD_PRESSURE);
             } else if (symptomName.contains("pain")) {
                 recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
             }
         }
-
-        // הוספת בדיקות מותאמות לגורמי סיכון
-        for (ExtractedSymptom symptom : symptoms) {
-            if (symptom.getName().toLowerCase().contains("chest pain")) {
-                recommendedTests.add(MedicalTest.TestType.ECG);
-                recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
-            }
-            if (symptom.getName().toLowerCase().contains("fever")) {
-                recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
-            }
-        }
-
-        // בדיקות נוספות בהתבסס על מסלולים מתקדמים
-        pathways.stream()
-                .filter(p -> p.getRiskScore() > 0.6)
-                .forEach(pathway -> {
-                    // לוגיקה להמלצת בדיקות בהתבסס על סוג המסלול
-                    if (pathway.getNodes().stream().anyMatch(n -> "Disease".equals(n.getType()))) {
-                        recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
-                    }
-                });
 
         String urgency = switch (urgencyLevel) {
             case EMERGENCY -> "ASAP";
@@ -415,13 +413,74 @@ public class TreatmentRecommendationEngine {
                     MedicalTest test = new MedicalTest();
                     test.setType(testType);
                     test.setDescription(testType.getDescription());
-                    test.setReason("Recommended based on advanced graph analysis and symptom patterns");
+                    test.setReason("Test recommended based on symptom analysis");
                     test.setUrgency(urgency);
                     return test;
                 })
                 .collect(Collectors.toList());
     }
 
+    // פונקציה עזר לקבלת הקונטקסט הנוכחי
+    private UserMedicalContext getCurrentUserContext() {
+        // זה צריך להחזיר את הקונטקסט הנוכחי - זה תלוי במימוש הספציפי
+        // לעת עתה נחזיר קונטקסט ריק
+        return new UserMedicalContext();
+    }
+
+    // הלוגיקה הישנה - כגיבוי
+    private List<MedicalTest> generateLegacyTests(Set<ExtractedSymptom> symptoms,
+                                                  TreatmentPlan.UrgencyLevel urgencyLevel,
+                                                  UserMedicalContext userContext) {
+        Set<MedicalTest.TestType> recommendedTests = new HashSet<>();
+
+        Map<String, MedicalTest.TestType> symptomToTest = Map.of(
+                "chest pain", MedicalTest.TestType.ECG,
+                "heart", MedicalTest.TestType.ECG,
+                "fever", MedicalTest.TestType.BLOOD_TEST,
+                "headache", MedicalTest.TestType.BLOOD_PRESSURE,
+                "pain", MedicalTest.TestType.BLOOD_TEST
+        );
+
+        // בדיקות על בסיס סימפטומים
+        for (ExtractedSymptom symptom : symptoms) {
+            String symptomName = symptom.getName().toLowerCase();
+            for (Map.Entry<String, MedicalTest.TestType> entry : symptomToTest.entrySet()) {
+                if (symptomName.contains(entry.getKey())) {
+                    recommendedTests.add(entry.getValue());
+                }
+            }
+        }
+
+        // הוספת בדיקות מותאמות לגורמי סיכון
+        for (UserMedicalEntity riskFactor : userContext.getRiskFactors()) {
+            String riskType = riskFactorService.getRiskFactorType(riskFactor);
+            if (riskFactorService.getRiskFactorWeight(riskFactor) > 0.6) {
+                switch (riskType) {
+                    case "BMI" -> recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
+                    case "BLOOD_PRESSURE" -> recommendedTests.add(MedicalTest.TestType.BLOOD_PRESSURE);
+                    case "FAMILY_HEART_DISEASE" -> recommendedTests.add(MedicalTest.TestType.ECG);
+                }
+            }
+        }
+
+        String urgency = switch (urgencyLevel) {
+            case EMERGENCY -> "ASAP";
+            case HIGH -> "Within 24h";
+            case MEDIUM -> "Within week";
+            case LOW -> "Within month";
+        };
+
+        return recommendedTests.stream()
+                .map(testType -> {
+                    MedicalTest test = new MedicalTest();
+                    test.setType(testType);
+                    test.setDescription(testType.getDescription());
+                    test.setReason("Test recommended based on analysis and risk factors");
+                    test.setUrgency(urgency);
+                    return test;
+                })
+                .collect(Collectors.toList());
+    }
     private List<DoctorVisit> generateDoctorVisits(TreatmentPlan.UrgencyLevel urgencyLevel,
                                                    List<MedicalGraphAnalyticsService.MedicalCommunity> communities,
                                                    List<MedicalGraphAnalyticsService.MedicalHub> hubs) {
