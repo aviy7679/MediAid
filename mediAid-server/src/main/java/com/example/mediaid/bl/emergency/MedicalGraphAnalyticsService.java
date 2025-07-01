@@ -45,7 +45,7 @@ public class MedicalGraphAnalyticsService {
                         WHERE last(nodes(path)).cui = $targetCui
                         WITH path,
                              reduce(pathWeight = 1.0, rel in relationships(path) |\s
-                                    pathWeight * rel.weight * power(0.85, length(path))) as riskScore,
+                                    pathWeight * rel.weight * pow(0.85, length(path))) as riskScore,
                              [node in nodes(path) | {cui: node.cui, name: node.name, type: labels(node)[0]}] as pathNodes,
                              [rel in relationships(path) | {type: type(rel), weight: rel.weight}] as pathRelationships
                         RETURN pathNodes, pathRelationships, riskScore, length(path) as pathLength
@@ -89,14 +89,15 @@ public class MedicalGraphAnalyticsService {
         List<MedicalCommunity> communities = new ArrayList<>();
         try(Session session = neo4jDriver.session()) {
             //גרף זמני למשתמש הנוכחי
-            String userCuis = userContext.stream().map(UserMedicalEntity::getCui).collect(Collectors.joining("', '", "'", "'"));
+            List<String> userCuis = userContext.stream()
+                    .map(UserMedicalEntity::getCui)
+                    .collect(Collectors.toList());
 
-            //זיהוי קהילות
             String communityDetectionQuery = """
                 CALL gds.graph.project.cypher(
                     'user-medical-network',
-                    'MATCH (n) WHERE n.cui IN [%s] RETURN id(n) AS id, labels(n)[0] AS type',
-                    'MATCH (n)-[r]-(m) WHERE n.cui IN [%s] AND m.cui IN [%s] 
+                    'MATCH (n) WHERE n.cui IN $userCuis RETURN id(n) AS id, labels(n)[0] AS type',
+                    'MATCH (n)-[r]-(m) WHERE n.cui IN $userCuis AND m.cui IN $userCuis 
                      RETURN id(n) AS source, id(m) AS target, 
                             coalesce(r.weight, 0.5) AS weight, type(r) AS relationshipType'
                 )
@@ -116,9 +117,10 @@ public class MedicalGraphAnalyticsService {
                        count(*) AS size
                 ORDER BY size DESC
                 LIMIT 10
-                """.formatted(userCuis, userCuis, userCuis);
+                """;
 
-            var result = session.readTransaction(tx->tx.run(communityDetectionQuery));
+            var result = session.readTransaction(tx->tx.run(communityDetectionQuery,
+                    Map.of("userCuis", userCuis)));
 
             result.forEachRemaining(record -> {
                 try{
@@ -168,7 +170,7 @@ public class MedicalGraphAnalyticsService {
                         
                         WITH path,
                              reduce(propagatedRisk = $initialRisk, rel in relationships(path) | 
-                                    propagatedRisk * rel.weight * power($decay, length(path))) as finalRisk
+                                    propagatedRisk * rel.weight * pow($decay, length(path))) as finalRisk
                         WHERE finalRisk > 0.05
                         
                         RETURN nodes(path) as pathNodes,
