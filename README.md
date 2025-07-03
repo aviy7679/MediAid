@@ -103,6 +103,6 @@ npm start
 
 ## 🎥 Project Presentation
 
-Watch the full presentation on [Canva]([https://your-canva-link.com](https://www.canva.com/design/DAGpfz5lEMA/Z1zQLtnfc5McnIhCCKUQig/edit?utm_content=DAGpfz5lEMA&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton))
+Watch the full presentation on [Canva](https://www.canva.com/design/DAGpfz5lEMA/Z1zQLtnfc5McnIhCCKUQig/edit?utm_content=DAGpfz5lEMA&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton)
 
 > ⚠️ **Disclaimer**: MediAid is a research/development prototype and not intended for actual clinical use without regulatory approval.
