@@ -276,6 +276,7 @@ import com.example.mediaid.dto.emergency.MedicalConnection;
 import com.example.mediaid.dto.emergency.UserMedicalEntity;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Session;
+import org.neo4j.driver.Record;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -297,43 +298,42 @@ public class Neo4jPathfindingService {
 
     //    קשר בין תרופות לבין סימפטומים של המשתמש
     public List<MedicalConnection> findMedicationSideEffects(List<UserMedicalEntity> medications, List<ExtractedSymptom> symptoms) {
-        //רשימה שכל אובייקט בה הוא בעצם קשר בין תרופה לסימפטום
         List<MedicalConnection> connections = new ArrayList<>();
 
         try(Session session = neo4jDriver.session()) {
             for (UserMedicalEntity medication : medications) {
                 for (ExtractedSymptom symptom : symptoms) {
-
-                    //חיפוש תופעות לוואי
                     String query = """
-                            MATCH (med:Medication {cui: $medCui})-[r:CAUSES_SIDE_EFFECT]->(symp:Symptom {cui: $sympCui})
-                            RETURN med.name as medName, symp.name as sympName, r.weight as confidence, r.source as source
-                            UNION
-                            MATCH (med:Medication {cui: $medCui})-[r:SIDE_EFFECT_OF]-(symp:Symptom {cui: $sympCui})
-                            RETURN med.name as medName, symp.name as sympName, r.weight as confidence, r.source as source
-                    """;
-                    var result = session.readTransaction(tx -> {
-                        var queryResult = tx.run(query, Map.of("medCui", medication.getCui(), "sympCui", symptom.getCui()));
-                        return queryResult.list(); // או .stream() או .single()
-                    });
-//                    result.forEachRemaining(record -> {
-//                        MedicalConnection connection = new MedicalConnection();
-//                        connection.setType(MedicalConnection.ConnectionType.SIDE_EFFECT);
-//                        connection.setFromEntity(record.get("medName").asString());
-//                        connection.setToEntity(record.get("sympName").asString());
-//                        connection.setFromCui(medication.getCui());
-//                        connection.setToCui(symptom.getCui());
-//                        connection.setConfidence(record.get("confidence").asDouble());
-//                        connection.setExplanation(String.format("The drug %s may cause a side effect: %s", medication.getName(), symptom.getName()));
-//                        connections.add(connection);
-//
-//                        logger.info("Found side effect connections: {} -> {}", medication.getName(), symptom.getName());
-//                    });
+                        MATCH (med:Medication {cui: $medCui})-[r:CAUSES_SIDE_EFFECT]->(symp:Symptom {cui: $sympCui})
+                        RETURN med.name as medName, symp.name as sympName, r.weight as confidence, r.source as source
+                        UNION
+                        MATCH (med:Medication {cui: $medCui})-[r:SIDE_EFFECT_OF]-(symp:Symptom {cui: $sympCui})
+                        RETURN med.name as medName, symp.name as sympName, r.weight as confidence, r.source as source
+                """;
 
+                    // תיקון: עיבוד נכון של התוצאות
+                    List<Record> records = session.readTransaction(tx ->
+                            tx.run(query, Map.of("medCui", medication.getCui(), "sympCui", symptom.getCui())).list()
+                    );
+
+                    for (Record record : records) {
+                        MedicalConnection connection = new MedicalConnection();
+                        connection.setType(MedicalConnection.ConnectionType.SIDE_EFFECT);
+                        connection.setFromEntity(record.get("medName").asString());
+                        connection.setToEntity(record.get("sympName").asString());
+                        connection.setFromCui(medication.getCui());
+                        connection.setToCui(symptom.getCui());
+                        connection.setConfidence(record.get("confidence").asDouble());
+                        connection.setExplanation(String.format("The drug %s may cause a side effect: %s",
+                                medication.getName(), symptom.getName()));
+                        connections.add(connection);
+
+                        logger.info("Found side effect connection: {} -> {}", medication.getName(), symptom.getName());
+                    }
                 }
             }
         } catch (Exception e) {
-            logger.error("Error finding medication side effects: {}",e.getMessage(), e);
+            logger.error("Error finding medication side effects: {}", e.getMessage(), e);
         }
         return connections;
     }
