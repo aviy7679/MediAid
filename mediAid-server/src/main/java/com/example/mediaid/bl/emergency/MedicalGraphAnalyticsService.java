@@ -570,38 +570,48 @@ public class MedicalGraphAnalyticsService {
         List<MedicalPathway> pathways = new ArrayList<>();
         try (Session session = neo4jDriver.session()) {
             for(ExtractedSymptom symptom : targetSymptoms) {
-                // תיקון: שימוש בחישוב decay ללא pow/power
                 String advancedPathQuery = """
-                        MATCH (source {cui: $sourceCui})
-                        CALL apoc.path.expandConfig(source, {
-                            relationshipFilter: "TREATS|CAUSES_SIDE_EFFECT|INDICATES|RISK_FACTOR_FOR|INFLUENCES>",
-                            labelFilter: "+Disease|+Medication|+Symptom|+RiskFactor",
-                            minLevel: 1,
-                            maxLevel: $maxDepth,
-                            limit: 15,
-                            endNodes: [{cui: $targetCui}]
-                        }) YIELD path
-                        WHERE last(nodes(path)).cui = $targetCui
-                        WITH path,
-                             reduce(pathWeight = 1.0, rel in relationships(path) | 
-                                    pathWeight * rel.weight * 
-                                    CASE length(path)
-                                        WHEN 1 THEN 0.85
-                                        WHEN 2 THEN 0.7225  
-                                        WHEN 3 THEN 0.614
-                                        WHEN 4 THEN 0.522
-                                        WHEN 5 THEN 0.444
-                                        ELSE 0.4
-                                    END) as riskScore,
-                             [node in nodes(path) | {cui: node.cui, name: node.name, type: labels(node)[0]}] as pathNodes,
-                             [rel in relationships(path) | {type: type(rel), weight: rel.weight}] as pathRelationships
-                        RETURN pathNodes, pathRelationships, riskScore, length(path) as pathLength
-                        ORDER BY riskScore DESC, pathLength ASC
-                        LIMIT 10
-                        """;
+                MATCH (source {cui: $sourceCui})
+                CALL apoc.path.expandConfig(source, {
+                    relationshipFilter: "TREATS|CAUSES_SIDE_EFFECT|INDICATES|RISK_FACTOR_FOR|INFLUENCES>",
+                    labelFilter: "+Disease|+Medication|+Symptom|+RiskFactor",
+                    minLevel: 1,
+                    maxLevel: $maxDepth,
+                    limit: 15,
+                    endNodes: [{cui: $targetCui}]
+                }) YIELD path
+                WHERE last(nodes(path)).cui = $targetCui
+                WITH path,
+                     // תיקון: חישוב נכון של risk score
+                     reduce(pathWeight = 0.0, rel in relationships(path) | 
+                            pathWeight + rel.weight) / length(relationships(path)) *
+                     CASE length(path)
+                         WHEN 1 THEN 0.85
+                         WHEN 2 THEN 0.65
+                         WHEN 3 THEN 0.45  // במקום 0.614
+                         WHEN 4 THEN 0.25
+                         WHEN 5 THEN 0.15
+                         ELSE 0.1
+                     END as riskScore,
+                     [node in nodes(path) | {
+                         cui: node.cui, 
+                         name: node.name, 
+                         type: labels(node)[0]
+                     }] as pathNodes,
+                     [rel in relationships(path) | {
+                         type: type(rel), 
+                         weight: rel.weight,
+                         source: startNode(rel).name,
+                         target: endNode(rel).name
+                     }] as pathRelationships
+                RETURN pathNodes, pathRelationships, 
+                       ROUND(riskScore * 100) / 100.0 as riskScore,  // עיגול לשתי ספרות
+                       length(path) as pathLength
+                ORDER BY riskScore DESC, pathLength ASC
+                LIMIT 10
+                """;
 
-                // תיקון: צריכה נכונה של התוצאות
-                List<Record> records = session.readTransaction(tx->
+                List<Record> records = session.readTransaction(tx ->
                         tx.run(advancedPathQuery, Map.of(
                                 "sourceCui", sourceCui,
                                 "targetCui", symptom.getCui(),
@@ -674,32 +684,32 @@ public class MedicalGraphAnalyticsService {
                     .collect(Collectors.toList());
 
             String communityDetectionQuery = """
-                CALL gds.graph.project.cypher(
-                    'user-medical-network',
-                    'MATCH (n) WHERE n.cui IN $userCuis RETURN id(n) AS id, labels(n)[0] AS type',
-                    'MATCH (n)-[r]-(m) WHERE n.cui IN $userCuis AND m.cui IN $userCuis 
-                     RETURN id(n) AS source, id(m) AS target, 
-                            coalesce(r.weight, 0.5) AS weight, type(r) AS relationshipType'
-                )
-                YIELD graphName
-                
-                CALL gds.louvain.stream(graphName, {
-                    relationshipWeightProperty: 'weight',
-                    includeIntermediateCommunities: true,
-                    maxLevels: 3,
-                    tolerance: 0.001
-                })
-                YIELD nodeId, communityId, intermediateCommunityIds
-                
-                WITH gds.util.asNode(nodeId) AS node, communityId, intermediateCommunityIds
-                RETURN communityId, 
-                       collect({cui: node.cui, name: node.name, type: labels(node)[0]}) AS members,
-                       count(*) AS size
-                ORDER BY size DESC
-                LIMIT 10
-                """;
+            CALL gds.graph.project.cypher(
+                'user-medical-network',
+                'MATCH (n) WHERE n.cui IN $userCuis RETURN id(n) AS id, labels(n)[0] AS type',
+                'MATCH (n)-[r]-(m) WHERE n.cui IN $userCuis AND m.cui IN $userCuis 
+                 RETURN id(n) AS source, id(m) AS target, 
+                        coalesce(r.weight, 0.5) AS weight, type(r) AS relationshipType'
+            )
+            YIELD graphName
+            
+            CALL gds.louvain.stream(graphName, {
+                relationshipWeightProperty: 'weight',
+                includeIntermediateCommunities: true,
+                maxLevels: 3,
+                tolerance: 0.001
+            })
+            YIELD nodeId, communityId, intermediateCommunityIds
+            
+            WITH gds.util.asNode(nodeId) AS node, communityId, intermediateCommunityIds
+            RETURN communityId, 
+                   collect({cui: node.cui, name: node.name, type: labels(node)[0]}) AS members,
+                   count(*) AS size
+            ORDER BY size DESC
+            LIMIT 10
+            """;
 
-            List<Record> records = session.readTransaction(tx->
+            List<Record> records = session.readTransaction(tx ->
                     tx.run(communityDetectionQuery, Map.of("userCuis", userCuis)).list());
 
             for (Record record : records) {
@@ -830,33 +840,35 @@ public class MedicalGraphAnalyticsService {
                 for(ExtractedSymptom symptom : targetSymptoms) {
                     // תיקון: שימוש בחישוב decay ללא pow
                     String riskPropagationQuery = """
-                            MATCH (source {cui: $sourceCui})
-                            CALL apoc.path.expandConfig(source, {
-                                relationshipFilter: "RISK_FACTOR_FOR|CAUSES|INFLUENCES|LEADS_TO>",
-                                maxLevel: 4,
-                                limit: 20
-                            }) YIELD path
-                            WHERE any(node in nodes(path) WHERE node.cui = $targetCui)
-                            
-                            WITH path,
-                                 reduce(propagatedRisk = $initialRisk, rel in relationships(path) | 
-                                        propagatedRisk * rel.weight * 
-                                        CASE length(path)
-                                            WHEN 1 THEN $decay
-                                            WHEN 2 THEN $decay * $decay  
-                                            WHEN 3 THEN $decay * $decay * $decay
-                                            WHEN 4 THEN $decay * $decay * $decay * $decay
-                                            ELSE 0.1
-                                        END) as finalRisk
-                            WHERE finalRisk > 0.05
-                            
-                            RETURN nodes(path) as pathNodes,
-                                   relationships(path) as pathRels,
-                                   finalRisk,
-                                   length(path) as pathLength
-                            ORDER BY finalRisk DESC
-                            LIMIT 5
-                            """;
+                        MATCH (source {cui: $sourceCui})
+                        MATCH (target {cui: $targetCui})
+                        CALL apoc.path.expandConfig(source, {
+                            relationshipFilter: "RISK_FACTOR_FOR|CAUSES|INFLUENCES|LEADS_TO>",
+                            maxLevel: 4,
+                            limit: 20,
+                            endNodes: [target]
+                        }) YIELD path
+                        WHERE any(node in nodes(path) WHERE node.cui = $targetCui)
+                        
+                        WITH path,
+                             reduce(propagatedRisk = $initialRisk, rel in relationships(path) | 
+                                    propagatedRisk * rel.weight * 
+                                    CASE length(path)
+                                        WHEN 1 THEN $decay
+                                        WHEN 2 THEN $decay * $decay  
+                                        WHEN 3 THEN $decay * $decay * $decay
+                                        WHEN 4 THEN $decay * $decay * $decay * $decay
+                                        ELSE 0.1
+                                    END) as finalRisk
+                        WHERE finalRisk > 0.05
+                        
+                        RETURN nodes(path) as pathNodes,
+                               relationships(path) as pathRels,
+                               finalRisk,
+                               length(path) as pathLength
+                        ORDER BY finalRisk DESC
+                        LIMIT 5
+                        """;
 
                     double initialRisk = calculateInitialRisk(riskSource);
 
@@ -892,9 +904,10 @@ public class MedicalGraphAnalyticsService {
         result.setPropagationPaths(propagationPaths);
         result.setTotalRiskScore(symptomRiskScores.values().stream().mapToDouble(Double::doubleValue).sum());
 
-        logger.info("Risk propagation complete. Total risk: {:.3f}", result.getTotalRiskScore());
+        logger.info("Risk propagation complete. Total risk: {}", String.format("%.3f", result.getTotalRiskScore()));
         return result;
     }
+
 
     /**
      * ניתוח centrality למציאת "hub" רפואיים חשובים - עם תיקון parameters
@@ -907,26 +920,26 @@ public class MedicalGraphAnalyticsService {
                     .map(UserMedicalEntity::getCui)
                     .collect(Collectors.toList());
 
-            // תיקון: שימוש ב-parameters במקום String.format
+            // תיקון: שימוש נכון ב-parameters
             String centralityQuery = """
-                    CALL gds.graph.project.cypher(
-                        'centrality-network',
-                        'MATCH (n) WHERE n.cui IN $userCuis RETURN id(n) AS id, n.cui AS cui, n.name AS name',
-                        'MATCH (n)-[r]-(m) WHERE n.cui IN $userCuis AND m.cui IN $userCuis 
-                         RETURN id(n) AS source, id(m) AS target, coalesce(r.weight, 1.0) AS weight'
-                    )
-                    YIELD graphName
-                    
-                    CALL gds.betweenness.stream(graphName, {relationshipWeightProperty: 'weight'})
-                    YIELD nodeId, score
-                    
-                    WITH gds.util.asNode(nodeId) AS node, score
-                    WHERE score > 0
-                    RETURN node.cui AS cui, node.name AS name, score,
-                           labels(node)[0] AS type
-                    ORDER BY score DESC
-                    LIMIT 10
-                    """;
+                CALL gds.graph.project.cypher(
+                    'centrality-network',
+                    'MATCH (n) WHERE n.cui IN $userCuis RETURN id(n) AS id, n.cui AS cui, n.name AS name',
+                    'MATCH (n)-[r]-(m) WHERE n.cui IN $userCuis AND m.cui IN $userCuis 
+                     RETURN id(n) AS source, id(m) AS target, coalesce(r.weight, 1.0) AS weight'
+                )
+                YIELD graphName
+                
+                CALL gds.betweenness.stream(graphName, {relationshipWeightProperty: 'weight'})
+                YIELD nodeId, score
+                
+                WITH gds.util.asNode(nodeId) AS node, score
+                WHERE score > 0
+                RETURN node.cui AS cui, node.name AS name, score,
+                       labels(node)[0] AS type
+                ORDER BY score DESC
+                LIMIT 10
+                """;
 
             try {
                 List<Record> records = session.readTransaction(tx->
@@ -948,7 +961,11 @@ public class MedicalGraphAnalyticsService {
 
                 // ניקוי הגרף הזמני
                 session.writeTransaction(tx->{
-                    tx.run("CALL gds.graph.drop('centrality-network', false)").list();
+                    try {
+                        tx.run("CALL gds.graph.drop('centrality-network', false)").list();
+                    } catch (Exception e) {
+                        logger.debug("Graph may not exist for cleanup: {}", e.getMessage());
+                    }
                     return null;
                 });
 
@@ -964,7 +981,6 @@ public class MedicalGraphAnalyticsService {
         logger.info("Found {} medical hubs", hubs.size());
         return hubs;
     }
-
     private List<MedicalHub> findHubsBasic(Session session, List<String> userCuis) {
         List<MedicalHub> hubs = new ArrayList<>();
 

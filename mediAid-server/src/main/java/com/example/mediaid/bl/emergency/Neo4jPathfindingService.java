@@ -317,18 +317,22 @@ public class Neo4jPathfindingService {
                     );
 
                     for (Record record : records) {
-                        MedicalConnection connection = new MedicalConnection();
-                        connection.setType(MedicalConnection.ConnectionType.SIDE_EFFECT);
-                        connection.setFromEntity(record.get("medName").asString());
-                        connection.setToEntity(record.get("sympName").asString());
-                        connection.setFromCui(medication.getCui());
-                        connection.setToCui(symptom.getCui());
-                        connection.setConfidence(record.get("confidence").asDouble());
-                        connection.setExplanation(String.format("The drug %s may cause a side effect: %s",
-                                medication.getName(), symptom.getName()));
-                        connections.add(connection);
+                        try {
+                            MedicalConnection connection = new MedicalConnection();
+                            connection.setType(MedicalConnection.ConnectionType.SIDE_EFFECT);
+                            connection.setFromEntity(record.get("medName").asString());
+                            connection.setToEntity(record.get("sympName").asString());
+                            connection.setFromCui(medication.getCui());
+                            connection.setToCui(symptom.getCui());
+                            connection.setConfidence(record.get("confidence").asDouble());
+                            connection.setExplanation(String.format("The drug %s may cause a side effect: %s",
+                                    medication.getName(), symptom.getName()));
+                            connections.add(connection);
 
-                        logger.info("Found side effect connection: {} -> {}", medication.getName(), symptom.getName());
+                            logger.info("Found side effect connection: {} -> {}", medication.getName(), symptom.getName());
+                        } catch (Exception e) {
+                            logger.warn("Error processing side effect record: {}", e.getMessage());
+                        }
                     }
                 }
             }
@@ -355,26 +359,30 @@ public class Neo4jPathfindingService {
                             RETURN dis.name as disName, symp.name as sympName, r.weight as confidence, r.source as source
                             """;
 
-                    var result = session.readTransaction(tx ->
-                            tx.run(query, Map.of("disCui", disease.getCui(), "sympCui", symptom.getCui())));
+                    List<Record> records = session.readTransaction(tx ->
+                            tx.run(query, Map.of("disCui", disease.getCui(), "sympCui", symptom.getCui())).list());
 
-                    result.forEachRemaining(record -> {
-                        MedicalConnection connection = new MedicalConnection();
-                        connection.setType(MedicalConnection.ConnectionType.DISEASE_SYMPTOM);
-                        connection.setFromEntity(record.get("disName").asString());
-                        connection.setToEntity(record.get("sympName").asString());
-                        connection.setFromCui(disease.getCui());
-                        connection.setToCui(symptom.getCui());
-                        connection.setConfidence(record.get("confidence").asDouble());
-                        connection.setExplanation(
-                                String.format("המחלה %s יכולה להיות הגורם לסימפטום: %s",
-                                        disease.getName(), symptom.getName())
-                        );
-                        connections.add(connection);
+                    for (Record record : records) {
+                        try {
+                            MedicalConnection connection = new MedicalConnection();
+                            connection.setType(MedicalConnection.ConnectionType.DISEASE_SYMPTOM);
+                            connection.setFromEntity(record.get("disName").asString());
+                            connection.setToEntity(record.get("sympName").asString());
+                            connection.setFromCui(disease.getCui());
+                            connection.setToCui(symptom.getCui());
+                            connection.setConfidence(record.get("confidence").asDouble());
+                            connection.setExplanation(
+                                    String.format("המחלה %s יכולה להיות הגורם לסימפטום: %s",
+                                            disease.getName(), symptom.getName())
+                            );
+                            connections.add(connection);
 
-                        logger.info("Found disease-symptom connection: {} -> {}",
-                                disease.getName(), symptom.getName());
-                    });
+                            logger.info("Found disease-symptom connection: {} -> {}",
+                                    disease.getName(), symptom.getName());
+                        } catch (Exception e) {
+                            logger.warn("Error processing disease-symptom record: {}", e.getMessage());
+                        }
+                    }
                 }
             }
         } catch (Exception e) {
@@ -393,76 +401,41 @@ public class Neo4jPathfindingService {
 
                 // חיפוש תרופות שמטפלות בסימפטום
                 String treatmentQuery = """
-                    MATCH (symp:Symptom {cui: $sympCui})<-[r:CAUSES_SYMPTOM]-(dis:Disease)<-[t:TREATS]-(med:Medication)
-                    RETURN DISTINCT med.name as medName, med.cui as medCui, dis.name as disName, 
-                           (r.weight + t.weight) / 2 as confidence
-                    ORDER BY confidence DESC
-                    LIMIT 5
-                    """;
+                MATCH (symp:Symptom {cui: $sympCui})<-[r:CAUSES_SYMPTOM]-(dis:Disease)<-[t:TREATS]-(med:Medication)
+                RETURN DISTINCT med.name as medName, med.cui as medCui, dis.name as disName, 
+                       (r.weight + t.weight) / 2 as confidence
+                ORDER BY confidence DESC
+                LIMIT 5
+                """;
 
-                var result = session.readTransaction(tx ->
-                        tx.run(treatmentQuery, Map.of("sympCui", symptom.getCui())));
+                // תיקון: צריכה נכונה של התוצאות - החזרת list במקום Result
+                List<Record> records = session.readTransaction(tx ->
+                        tx.run(treatmentQuery, Map.of("sympCui", symptom.getCui())).list());
 
-                result.forEachRemaining(record -> {
-                    MedicalConnection connection = new MedicalConnection();
-                    connection.setType(MedicalConnection.ConnectionType.DISEASE_SYMPTOM);
-                    connection.setFromEntity(symptom.getName());
-                    connection.setToEntity(record.get("medName").asString());
-                    connection.setFromCui(symptom.getCui());
-                    connection.setToCui(record.get("medCui").asString());
-                    connection.setConfidence(record.get("confidence").asDouble());
-                    connection.setExplanation(
-                            String.format("התרופה %s עשויה לעזור בטיפול בסימפטום %s (דרך %s)",
-                                    record.get("medName").asString(), symptom.getName(), record.get("disName").asString())
-                    );
-                    connections.add(connection);
-                });
+                // עיבוד התוצאות
+                for (Record record : records) {
+                    try {
+                        MedicalConnection connection = new MedicalConnection();
+                        connection.setType(MedicalConnection.ConnectionType.DISEASE_SYMPTOM);
+                        connection.setFromEntity(symptom.getName());
+                        connection.setToEntity(record.get("medName").asString());
+                        connection.setFromCui(symptom.getCui());
+                        connection.setToCui(record.get("medCui").asString());
+                        connection.setConfidence(record.get("confidence").asDouble());
+                        connection.setExplanation(
+                                String.format("התרופה %s עשויה לעזור בטיפול בסימפטום %s (דרך %s)",
+                                        record.get("medName").asString(), symptom.getName(), record.get("disName").asString())
+                        );
+                        connections.add(connection);
+                    } catch (Exception e) {
+                        logger.warn("Error processing treatment record: {}", e.getMessage());
+                    }
+                }
             }
         } catch (Exception e) {
             logger.error("Error finding possible treatments: {}", e.getMessage(), e);
         }
 
         return connections;
-    }
-
-    //חיפוש מסלול מלא
-    public List<Map<String, Object>> findFullMedicalPath(String sourceCui, String symptomCui) {
-        List<Map<String, Object>> paths = new ArrayList<>();
-
-        try (Session session = neo4jDriver.session()) {
-            // מסלול: תרופה -> תופעת לוואי -> סימפטום -> טיפול אפשרי
-            String pathQuery = """
-                MATCH path = (source)-[r1]->(symptom:Symptom {cui: $sympCui})<-[r2:CAUSES_SYMPTOM]-(disease)<-[r3:TREATS]-(treatment)
-                WHERE source.cui = $sourceCui
-                RETURN path, 
-                       source.name as sourceName, 
-                       symptom.name as symptomName,
-                       disease.name as diseaseName,
-                       treatment.name as treatmentName,
-                       type(r1) as relationshipType,
-                       (r1.weight + r2.weight + r3.weight) / 3 as pathConfidence
-                ORDER BY pathConfidence DESC
-                LIMIT 3
-                """;
-
-            var result = session.readTransaction(tx ->
-                    tx.run(pathQuery, Map.of("sourceCui", sourceCui, "sympCui", symptomCui)));
-
-            result.forEachRemaining(record -> {
-                Map<String, Object> pathInfo = new HashMap<>();
-                pathInfo.put("source", record.get("sourceName").asString());
-                pathInfo.put("symptom", record.get("symptomName").asString());
-                pathInfo.put("disease", record.get("diseaseName").asString());
-                pathInfo.put("treatment", record.get("treatmentName").asString());
-                pathInfo.put("relationship_type", record.get("relationshipType").asString());
-                pathInfo.put("confidence", record.get("pathConfidence").asDouble());
-                paths.add(pathInfo);
-            });
-
-        } catch (Exception e) {
-            logger.error("Error finding full medical path: {}", e.getMessage(), e);
-        }
-
-        return paths;
     }
 }

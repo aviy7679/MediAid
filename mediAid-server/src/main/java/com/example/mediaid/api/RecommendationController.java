@@ -47,6 +47,7 @@ public class RecommendationController {
     @Value("${mediaid.analysis.use-advanced-engine:true}")
     private boolean useAdvancedEngine;
 
+
     /**
      * העלאת נתונים לניתוח - משולב (טקסט + תמונה + אודיו)
      */
