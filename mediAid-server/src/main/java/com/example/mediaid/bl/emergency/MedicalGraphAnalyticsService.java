@@ -572,26 +572,27 @@ public class MedicalGraphAnalyticsService {
             for(ExtractedSymptom symptom : targetSymptoms) {
                 String advancedPathQuery = """
                 MATCH (source {cui: $sourceCui})
+                MATCH (target {cui: $targetCui})
                 CALL apoc.path.expandConfig(source, {
                     relationshipFilter: "TREATS|CAUSES_SIDE_EFFECT|INDICATES|RISK_FACTOR_FOR|INFLUENCES>",
                     labelFilter: "+Disease|+Medication|+Symptom|+RiskFactor",
                     minLevel: 1,
                     maxLevel: $maxDepth,
                     limit: 15,
-                    endNodes: [{cui: $targetCui}]
+                    endNodes: [target]
                 }) YIELD path
                 WHERE last(nodes(path)).cui = $targetCui
                 WITH path,
-                     // תיקון: חישוב נכון של risk score
+                     // חישוב מתקן של risk score ללא exp/ln
                      reduce(pathWeight = 0.0, rel in relationships(path) | 
-                            pathWeight + rel.weight) / length(relationships(path)) *
-                     CASE length(path)
+                            pathWeight + rel.weight) / size(relationships(path)) *
+                     CASE size(relationships(path))
                          WHEN 1 THEN 0.85
-                         WHEN 2 THEN 0.65
-                         WHEN 3 THEN 0.45  // במקום 0.614
-                         WHEN 4 THEN 0.25
-                         WHEN 5 THEN 0.15
-                         ELSE 0.1
+                         WHEN 2 THEN 0.72  // 0.85^2 מחושב מראש
+                         WHEN 3 THEN 0.61  // 0.85^3 מחושב מראש
+                         WHEN 4 THEN 0.52  // 0.85^4 מחושב מראש
+                         WHEN 5 THEN 0.44  // 0.85^5 מחושב מראש
+                         ELSE 0.35
                      END as riskScore,
                      [node in nodes(path) | {
                          cui: node.cui, 
@@ -605,8 +606,8 @@ public class MedicalGraphAnalyticsService {
                          target: endNode(rel).name
                      }] as pathRelationships
                 RETURN pathNodes, pathRelationships, 
-                       ROUND(riskScore * 100) / 100.0 as riskScore,  // עיגול לשתי ספרות
-                       length(path) as pathLength
+                       riskScore,
+                       size(relationships(path)) as pathLength
                 ORDER BY riskScore DESC, pathLength ASC
                 LIMIT 10
                 """;
@@ -646,22 +647,29 @@ public class MedicalGraphAnalyticsService {
         List<MedicalCommunity> communities = new ArrayList<>();
 
         try(Session session = neo4jDriver.session()) {
-            // בדיקה אם GDS זמין
-            boolean gdsAvailable = checkGDSAvailability(session);
+            List<String> userCuis = userContext.stream()
+                    .map(UserMedicalEntity::getCui)
+                    .collect(Collectors.toList());
 
-            if (gdsAvailable) {
-                return detectCommunitiesWithGDS(session, userContext);
-            } else {
-                return detectCommunitiesWithBasicCypher(session, userContext);
+            // נסה GDS ראשית
+            try {
+                communities = detectCommunitiesWithGDS(session, userCuis);
+                if (!communities.isEmpty()) {
+                    return communities;
+                }
+            } catch (Exception e) {
+                logger.warn("GDS community detection failed: {}", e.getMessage());
             }
 
-        } catch (Exception e) {
-            logger.error("Error detecting medical communities: {}", e.getMessage());
             // fallback לגישה בסיסית
-            return detectCommunitiesBasic(userContext);
+            logger.info("Using basic community detection approach");
+            return detectCommunitiesBasic(session, userCuis);
+
+        } catch (Exception e) {
+            logger.error("Error in community detection: {}", e.getMessage());
+            return createFallbackCommunity(userContext);
         }
     }
-
     private boolean checkGDSAvailability(Session session) {
         try {
             session.readTransaction(tx -> {
@@ -675,33 +683,59 @@ public class MedicalGraphAnalyticsService {
         }
     }
 
-    private List<MedicalCommunity> detectCommunitiesWithGDS(Session session, List<UserMedicalEntity> userContext) {
+
+
+    private List<MedicalCommunity> createFallbackCommunity(List<UserMedicalEntity> userContext) {
+        List<MedicalCommunity> communities = new ArrayList<>();
+
+        if (userContext.size() >= 2) {
+            MedicalCommunity community = new MedicalCommunity();
+            community.setCommunityId(1L);
+            community.setSize(userContext.size());
+
+            List<CommunityMember> members = userContext.stream()
+                    .map(entity -> {
+                        CommunityMember member = new CommunityMember();
+                        member.setCui(entity.getCui());
+                        member.setName(entity.getName());
+                        member.setType(entity.getType());
+                        return member;
+                    }).collect(Collectors.toList());
+
+            community.setMembers(members);
+            community.setCohesionScore(0.5);
+            community.setDominantType(findDominantType(members));
+            community.setDescription("User medical profile community (fallback)");
+
+            communities.add(community);
+        }
+
+        return communities;
+    }
+
+    private List<MedicalCommunity> detectCommunitiesWithGDS(Session session, List<String> userCuis) {
         List<MedicalCommunity> communities = new ArrayList<>();
 
         try {
-            List<String> userCuis = userContext.stream()
-                    .map(UserMedicalEntity::getCui)
-                    .collect(Collectors.toList());
-
+            // תיקון: העברת פרמטר userCuis נכון
             String communityDetectionQuery = """
             CALL gds.graph.project.cypher(
                 'user-medical-network',
                 'MATCH (n) WHERE n.cui IN $userCuis RETURN id(n) AS id, labels(n)[0] AS type',
                 'MATCH (n)-[r]-(m) WHERE n.cui IN $userCuis AND m.cui IN $userCuis 
                  RETURN id(n) AS source, id(m) AS target, 
-                        coalesce(r.weight, 0.5) AS weight, type(r) AS relationshipType'
+                        coalesce(r.weight, 0.5) AS weight'
             )
             YIELD graphName
             
             CALL gds.louvain.stream(graphName, {
                 relationshipWeightProperty: 'weight',
-                includeIntermediateCommunities: true,
                 maxLevels: 3,
                 tolerance: 0.001
             })
-            YIELD nodeId, communityId, intermediateCommunityIds
+            YIELD nodeId, communityId
             
-            WITH gds.util.asNode(nodeId) AS node, communityId, intermediateCommunityIds
+            WITH gds.util.asNode(nodeId) AS node, communityId
             RETURN communityId, 
                    collect({cui: node.cui, name: node.name, type: labels(node)[0]}) AS members,
                    count(*) AS size
@@ -715,7 +749,7 @@ public class MedicalGraphAnalyticsService {
             for (Record record : records) {
                 try{
                     MedicalCommunity community = parseCommunityFromRecord(record);
-                    if (community != null && community.getSize() >=2) {
+                    if (community != null && community.getSize() >= 2) {
                         communities.add(community);
                     }
                 }catch(Exception e){
@@ -723,14 +757,19 @@ public class MedicalGraphAnalyticsService {
                 }
             }
 
-            //ניקוי הגרף הזמני
-            session.writeTransaction(tx->{
-                tx.run("CALL gds.graph.drop('user-medical-network', false)").list();
-                return null;
-            });
+            // ניקוי הגרף הזמני
+            try {
+                session.writeTransaction(tx -> {
+                    tx.run("CALL gds.graph.drop('user-medical-network', false)").list();
+                    return null;
+                });
+            } catch (Exception e) {
+                logger.debug("Graph cleanup issue: {}", e.getMessage());
+            }
 
         } catch (Exception e) {
             logger.error("Error in GDS community detection: {}", e.getMessage());
+            throw e;
         }
 
         return communities;
@@ -797,30 +836,58 @@ public class MedicalGraphAnalyticsService {
         return communities;
     }
 
-    private List<MedicalCommunity> detectCommunitiesBasic(List<UserMedicalEntity> userContext) {
-        // fallback פשוט ללא גרף
+    private List<MedicalCommunity> detectCommunitiesBasic(Session session, List<String> userCuis) {
         List<MedicalCommunity> communities = new ArrayList<>();
 
-        if (userContext.size() >= 3) {
-            MedicalCommunity community = new MedicalCommunity();
-            community.setCommunityId(1L);
-            community.setSize(userContext.size());
+        try {
+            String basicCommunityQuery = """
+            MATCH (n)-[r]-(m) 
+            WHERE n.cui IN $userCuis AND m.cui IN $userCuis
+            WITH n, collect(DISTINCT m) as connections, count(r) as connectionCount
+            WHERE connectionCount >= 2
+            RETURN n.cui as centerCui, n.name as centerName, 
+                   [conn in connections | {cui: conn.cui, name: conn.name, type: labels(conn)[0]}] as members,
+                   connectionCount as size
+            ORDER BY connectionCount DESC
+            LIMIT 5
+            """;
 
-            List<CommunityMember> members = userContext.stream()
-                    .map(entity -> {
-                        CommunityMember member = new CommunityMember();
-                        member.setCui(entity.getCui());
-                        member.setName(entity.getName());
-                        member.setType(entity.getType());
-                        return member;
-                    }).collect(Collectors.toList());
+            List<Record> records = session.readTransaction(tx ->
+                    tx.run(basicCommunityQuery, Map.of("userCuis", userCuis)).list()
+            );
 
-            community.setMembers(members);
-            community.setCohesionScore(0.5);
-            community.setDominantType(findDominantType(members));
-            community.setDescription("Basic user medical profile community");
+            long communityId = 1;
+            for (Record record : records) {
+                try {
+                    MedicalCommunity community = new MedicalCommunity();
+                    community.setCommunityId(communityId++);
+                    community.setSize(record.get("size").asInt());
 
-            communities.add(community);
+                    List<Object> members = record.get("members").asList();
+                    List<CommunityMember> communityMembers = members.stream()
+                            .map(member -> {
+                                @SuppressWarnings("unchecked")
+                                Map<String, Object> memberMap = (Map<String, Object>) member;
+                                CommunityMember cm = new CommunityMember();
+                                cm.setCui((String) memberMap.get("cui"));
+                                cm.setName((String) memberMap.get("name"));
+                                cm.setType((String) memberMap.get("type"));
+                                return cm;
+                            }).collect(Collectors.toList());
+
+                    community.setMembers(communityMembers);
+                    community.setCohesionScore(calculateCohesionScore(community));
+                    community.setDominantType(findDominantType(communityMembers));
+                    community.setDescription(generateCommunityDescription(community));
+
+                    communities.add(community);
+                } catch (Exception e) {
+                    logger.error("Error parsing basic community: {}", e.getMessage());
+                }
+            }
+
+        } catch (Exception e) {
+            logger.error("Error in basic community detection: {}", e.getMessage());
         }
 
         return communities;

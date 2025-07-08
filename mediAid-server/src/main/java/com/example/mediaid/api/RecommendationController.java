@@ -291,7 +291,7 @@ public class RecommendationController {
                         .body(createErrorResponse("Invalid or missing authorization token"));
             }
 
-            logger.info("🕸️ Performing dedicated Graph Analytics for user: {}", userId);
+            logger.info("Performing dedicated Graph Analytics for user: {}", userId);
 
             // חילוץ פרמטרים מהבקשה
             @SuppressWarnings("unchecked")
@@ -325,26 +325,26 @@ public class RecommendationController {
                 pathways.addAll(entityPathways);
             }
             graphAnalysisResults.put("advancedPathways", pathways);
-            logger.info("🛣️ Found {} advanced pathways", pathways.size());
+            logger.info("Found {} advanced pathways", pathways.size());
 
             // 2. Community Detection (אם מתבקש)
             if (includeCommunities) {
                 var communities = graphAnalyticsService.detectMedicalCommunities(allUserEntities);
                 graphAnalysisResults.put("medicalCommunities", communities);
-                logger.info("🕸️ Detected {} medical communities", communities.size());
+                logger.info("Detected {} medical communities", communities.size());
             }
 
             // 3. Risk Propagation Analysis
             var riskPropagation = graphAnalyticsService.calculateRiskPropagation(
                     userContext.getRiskFactors(), symptoms, 0.85);
             graphAnalysisResults.put("riskPropagation", riskPropagation);
-            logger.info("📊 Risk propagation: {:.3f} total risk", riskPropagation.getTotalRiskScore());
+            logger.info("Risk propagation: {:.3f} total risk", riskPropagation.getTotalRiskScore());
 
             // 4. Medical Hub Analysis (אם מתבקש)
             if (includeHubs) {
                 var medicalHubs = graphAnalyticsService.findMedicalHubs(allUserEntities);
                 graphAnalysisResults.put("medicalHubs", medicalHubs);
-                logger.info("🎯 Identified {} medical hubs", medicalHubs.size());
+                logger.info("Identified {} medical hubs", medicalHubs.size());
             }
 
             // בניית תשובה מפורטת
@@ -366,11 +366,11 @@ public class RecommendationController {
             response.put("graphAnalysisResults", graphAnalysisResults);
             response.put("analysisTimestamp", System.currentTimeMillis());
 
-            logger.info("✅ Dedicated graph analysis completed successfully");
+            logger.info("Dedicated graph analysis completed successfully");
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            logger.error("❌ Error in dedicated graph analysis", e);
+            logger.error("Error in dedicated graph analysis", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("Error in graph analysis: " + e.getMessage()));
         }
@@ -392,7 +392,7 @@ public class RecommendationController {
                         .body(createErrorResponse("Invalid or missing authorization token"));
             }
 
-            logger.info("⚖️ Comparing analysis engines for user: {}", userId);
+            logger.info("Comparing analysis engines for user: {}", userId);
 
             // חילוץ סימפטומים
             Set<ExtractedSymptom> symptoms = extractSymptoms(text, imageFile);
