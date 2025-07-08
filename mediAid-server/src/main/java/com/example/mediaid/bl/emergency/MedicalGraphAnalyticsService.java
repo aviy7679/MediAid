@@ -778,60 +778,57 @@ private List<MedicalCommunity> detectCommunitiesWithGDS(Session session, List<St
     List<MedicalCommunity> communities = new ArrayList<>();
 
     try {
-        // תיקון: הוספת בדיקה שיש CUIs
         if (userCuis == null || userCuis.isEmpty()) {
             logger.warn("No user CUIs provided for community detection");
             return communities;
         }
 
-        // תיקון: וידוא שהפרמטר מועבר נכון
         String communityDetectionQuery = """
-        CALL gds.graph.project.cypher(
-            'user-medical-network',
-            'MATCH (n) WHERE n.cui IN $userCuis RETURN id(n) AS id, labels(n)[0] AS type',
-            'MATCH (n)-[r]-(m) WHERE n.cui IN $userCuis AND m.cui IN $userCuis 
-             RETURN id(n) AS source, id(m) AS target, 
-                    coalesce(r.weight, 0.5) AS weight'
-        )
-        YIELD graphName
-        
-        CALL gds.louvain.stream(graphName, {
-            relationshipWeightProperty: 'weight',
-            maxLevels: 3,
-            tolerance: 0.001
-        })
-        YIELD nodeId, communityId
-        
-        WITH gds.util.asNode(nodeId) AS node, communityId
-        RETURN communityId, 
-               collect({cui: node.cui, name: node.name, type: labels(node)[0]}) AS members,
-               count(*) AS size
-        ORDER BY size DESC
-        LIMIT 10
-        """;
+            CALL gds.graph.project.cypher(
+                'user-medical-network',
+                'MATCH (n) WHERE n.cui IN $userCuis RETURN id(n) AS id, labels(n)[0] AS type',
+                'MATCH (n)-[r]-(m) WHERE n.cui IN $userCuis AND m.cui IN $userCuis RETURN id(n) AS source, id(m) AS target, coalesce(r.weight, 0.5) AS weight'
+            )
+            YIELD graphName
 
-        // תיקון: הוספת logging לבדיקה
+            CALL gds.louvain.stream(graphName, {
+                relationshipWeightProperty: 'weight',
+                maxLevels: 3,
+                tolerance: 0.001
+            })
+            YIELD nodeId, communityId
+
+            WITH gds.util.asNode(nodeId) AS node, communityId
+            RETURN communityId, 
+                   collect({cui: node.cui, name: node.name, type: labels(node)[0]}) AS members,
+                   count(*) AS size
+            ORDER BY size DESC
+            LIMIT 10
+            """;
+
         logger.debug("Running GDS community detection with {} CUIs", userCuis.size());
         logger.debug("User CUIs: {}", userCuis.subList(0, Math.min(5, userCuis.size())));
 
+        Map<String, Object> params = Map.of("userCuis", userCuis);
+
         List<Record> records = session.readTransaction(tx ->
-                tx.run(communityDetectionQuery, Map.of("userCuis", userCuis)).list());
+                tx.run(communityDetectionQuery, params).list());
 
         for (Record record : records) {
-            try{
+            try {
                 MedicalCommunity community = parseCommunityFromRecord(record);
                 if (community != null && community.getSize() >= 2) {
                     communities.add(community);
                 }
-            }catch(Exception e){
-                logger.error("Error parsing community: {}",e.getMessage());
+            } catch (Exception e) {
+                logger.error("Error parsing community: {}", e.getMessage());
             }
         }
 
         // ניקוי הגרף הזמני
         try {
             session.writeTransaction(tx -> {
-                tx.run("CALL gds.graph.drop('user-medical-network', false)").list();
+                tx.run("CALL gds.graph.drop('user-medical-network', false)").consume();
                 return null;
             });
         } catch (Exception e) {
@@ -845,7 +842,6 @@ private List<MedicalCommunity> detectCommunitiesWithGDS(Session session, List<St
 
     return communities;
 }
-
     // תיקון נוסף: בדיקה ש-detectMedicalCommunities מקבלת רשימה תקינה
     public List<MedicalCommunity> detectMedicalCommunities(List<UserMedicalEntity> userContext) {
         logger.info("Detecting medical communities using Louvain algorithm");
@@ -1098,70 +1094,69 @@ private List<MedicalCommunity> detectCommunitiesWithGDS(Session session, List<St
     public List<MedicalHub> findMedicalHubs(List<UserMedicalEntity> userContext) {
         List<MedicalHub> hubs = new ArrayList<>();
 
-        try(Session session = neo4jDriver.session()) {
+        try (Session session = neo4jDriver.session()) {
+            // הפכי את רשימת ה־CUIs לרשימת מחרוזות אמיתית (לא מחרוזת אחת עם גרשיים!)
             List<String> userCuis = userContext.stream()
                     .map(UserMedicalEntity::getCui)
                     .collect(Collectors.toList());
 
-            // תיקון: שימוש נכון ב-parameters
-            String centralityQuery = """
-                CALL gds.graph.project.cypher(
-                    'centrality-network',
-                    'MATCH (n) WHERE n.cui IN $userCuis RETURN id(n) AS id, n.cui AS cui, n.name AS name',
-                    'MATCH (n)-[r]-(m) WHERE n.cui IN $userCuis AND m.cui IN $userCuis 
-                     RETURN id(n) AS source, id(m) AS target, coalesce(r.weight, 1.0) AS weight'
-                )
-                YIELD graphName
-                
-                CALL gds.betweenness.stream(graphName, {relationshipWeightProperty: 'weight'})
-                YIELD nodeId, score
-                
-                WITH gds.util.asNode(nodeId) AS node, score
-                WHERE score > 0
-                RETURN node.cui AS cui, node.name AS name, score,
-                       labels(node)[0] AS type
-                ORDER BY score DESC
-                LIMIT 10
-                """;
-
-            try {
-                List<Record> records = session.readTransaction(tx->
-                        tx.run(centralityQuery, Map.of("userCuis", userCuis)).list());
-
-                for (Record record : records) {
-                    try {
-                        MedicalHub hub = new MedicalHub();
-                        hub.setCui(record.get("cui").asString());
-                        hub.setName(record.get("name").asString());
-                        hub.setType(record.get("type").asString());
-                        hub.setCentralityScore(record.get("score").asDouble());
-                        hub.setInfluenceLevel(categorizeInfluence(hub.getCentralityScore()));
-                        hubs.add(hub);
-                    }catch(Exception e){
-                        logger.error("Error parsing hub: {}",e.getMessage());
-                    }
-                }
-
-                // ניקוי הגרף הזמני
-                session.writeTransaction(tx->{
-                    try {
-                        tx.run("CALL gds.graph.drop('centrality-network', false)").list();
-                    } catch (Exception e) {
-                        logger.debug("Graph may not exist for cleanup: {}", e.getMessage());
-                    }
-                    return null;
-                });
-
-            } catch (Exception e) {
-                logger.warn("GDS centrality analysis failed, using basic approach: {}", e.getMessage());
-                // fallback לגישה בסיסית
-                hubs = findHubsBasic(session, userCuis);
+            // בדיקה שהרשימה לא ריקה
+            if (userCuis == null || userCuis.isEmpty()) {
+                logger.warn("No user CUIs provided for centrality analysis");
+                return hubs;
             }
 
-        }catch(Exception e){
-            logger.error("Error in centrality analysis: {}", e.getMessage(), e);
+            String centralityQuery = """
+            CALL gds.graph.project.cypher(
+                'centrality-network',
+                'MATCH (n) WHERE n.cui IN $userCuis RETURN id(n) AS id, n.cui AS cui, n.name AS name',
+                'MATCH (n)-[r]-(m) WHERE n.cui IN $userCuis AND m.cui IN $userCuis RETURN id(n) AS source, id(m) AS target, coalesce(r.weight, 1.0) AS weight'
+            )
+            YIELD graphName
+
+            CALL gds.betweenness.stream(graphName, {relationshipWeightProperty: 'weight'})
+            YIELD nodeId, score
+
+            WITH gds.util.asNode(nodeId) AS node, score
+            RETURN node.cui AS cui, node.name AS name, score
+            ORDER BY score DESC
+            LIMIT 10
+            """;
+
+            logger.debug("Running GDS centrality analysis with {} CUIs", userCuis.size());
+            logger.debug("User CUIs: {}", userCuis.subList(0, Math.min(5, userCuis.size())));
+
+            Map<String, Object> params = Map.of("userCuis", userCuis);
+
+            List<Record> records = session.readTransaction(tx ->
+                    tx.run(centralityQuery, params).list());
+
+            for (Record record : records) {
+                try {
+                    MedicalHub hub = new MedicalHub();
+                    hub.setCui(record.get("cui").asString());
+                    hub.setName(record.get("name").asString());
+                    hub.setCentralityScore(record.get("score").asDouble());
+                    hubs.add(hub);
+                } catch (Exception e) {
+                    logger.error("Error parsing hub: {}", e.getMessage());
+                }
+            }
+
+            // ניקוי הגרף
+            try {
+                session.writeTransaction(tx -> {
+                    tx.run("CALL gds.graph.drop('centrality-network', false)").consume();
+                    return null;
+                });
+            } catch (Exception e) {
+                logger.debug("Graph cleanup issue (might not exist): {}", e.getMessage());
+            }
+
+        } catch (Exception e) {
+            logger.error("Error in GDS centrality analysis: {}", e.getMessage());
         }
-        logger.info("Found {} medical hubs", hubs.size());
+
         return hubs;
     }
     private List<MedicalHub> findHubsBasic(Session session, List<String> userCuis) {
