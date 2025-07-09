@@ -238,66 +238,6 @@ private List<MedicalCommunity> detectCommunitiesWithGDS(Session session, List<St
         }
     }
 
-    private List<MedicalCommunity> detectCommunitiesWithBasicCypher(Session session, List<UserMedicalEntity> userContext) {
-        List<MedicalCommunity> communities = new ArrayList<>();
-
-        try {
-            List<String> userCuis = userContext.stream()
-                    .map(UserMedicalEntity::getCui)
-                    .collect(Collectors.toList());
-
-            String basicCommunityQuery = """
-                MATCH (n)-[r]-(m) 
-                WHERE n.cui IN $userCuis AND m.cui IN $userCuis
-                WITH n, collect(DISTINCT m) as connections, count(r) as connectionCount
-                WHERE connectionCount >= 2
-                RETURN n.cui as centerCui, n.name as centerName, 
-                       [conn in connections | {cui: conn.cui, name: conn.name, type: labels(conn)[0]}] as members,
-                       connectionCount as size
-                ORDER BY connectionCount DESC
-                LIMIT 5
-                """;
-
-            List<Record> records = session.readTransaction(tx ->
-                    tx.run(basicCommunityQuery, Map.of("userCuis", userCuis)).list()
-            );
-
-            long communityId = 1;
-            for (Record record : records) {
-                try {
-                    MedicalCommunity community = new MedicalCommunity();
-                    community.setCommunityId(communityId++);
-                    community.setSize(record.get("size").asInt());
-
-                    List<Object> members = record.get("members").asList();
-                    List<CommunityMember> communityMembers = members.stream()
-                            .map(member -> {
-                                @SuppressWarnings("unchecked")
-                                Map<String, Object> memberMap = (Map<String, Object>) member;
-                                CommunityMember cm = new CommunityMember();
-                                cm.setCui((String) memberMap.get("cui"));
-                                cm.setName((String) memberMap.get("name"));
-                                cm.setType((String) memberMap.get("type"));
-                                return cm;
-                            }).collect(Collectors.toList());
-
-                    community.setMembers(communityMembers);
-                    community.setCohesionScore(calculateCohesionScore(community));
-                    community.setDominantType(findDominantType(communityMembers));
-                    community.setDescription(generateCommunityDescription(community));
-
-                    communities.add(community);
-                } catch (Exception e) {
-                    logger.error("Error parsing basic community: {}", e.getMessage());
-                }
-            }
-
-        } catch (Exception e) {
-            logger.error("Error in basic community detection: {}", e.getMessage());
-        }
-
-        return communities;
-    }
 
     private List<MedicalCommunity> detectCommunitiesBasic(Session session, List<String> userCuis) {
         List<MedicalCommunity> communities = new ArrayList<>();

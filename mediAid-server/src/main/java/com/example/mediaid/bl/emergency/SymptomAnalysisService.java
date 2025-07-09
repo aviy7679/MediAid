@@ -14,6 +14,9 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
 
+import static com.example.mediaid.constants.ApiConstants.*;
+import static com.example.mediaid.constants.MedicalAnalysisConstants.*;
+
 @Service
 public class SymptomAnalysisService {
 
@@ -22,7 +25,7 @@ public class SymptomAnalysisService {
     @Value("${python.server.url:http://localhost:5000}")
     private String pythonServerUrl;
 
-    @Value("${python.server.timeout:30000}")
+    @Value("${python.server.timeout:" + PYTHON_SERVER_TIMEOUT + "}")
     private int timeoutMs;
 
     //תקשורת REST עם שרתים אחרים
@@ -35,7 +38,6 @@ public class SymptomAnalysisService {
         this.restTemplate = new RestTemplate();
         this.objectMapper = new ObjectMapper();
     }
-
 
     //חילוץ מטקסט
     public List<ExtractedSymptom> extractSymptomsFromText(String text){
@@ -80,7 +82,7 @@ public class SymptomAnalysisService {
 
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("image", base64Image);
-            requestBody.put("min_confidence",0.1); //סף דיפולטיבי
+            requestBody.put("min_confidence", MIN_SYMPTOM_CONFIDENCE); //סף דיפולטיבי
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -101,7 +103,6 @@ public class SymptomAnalysisService {
             return new ArrayList<>();
         }
     }
-
 
     //בדיקת תקינות השרת - פייתון
     public boolean checkPythonServerHealth() {
@@ -138,13 +139,14 @@ public class SymptomAnalysisService {
             }
 
             JsonNode symptomsArray = root.path("symptoms");
-            
+
             for (JsonNode symptomNode : symptomsArray) {
                 ExtractedSymptom symptom = new ExtractedSymptom();
 
                 symptom.setCui(symptomNode.path("cui").asText());
                 symptom.setName(symptomNode.path("name").asText());
                 symptom.setDetectedName(symptomNode.path("detected_name").asText());
+
                 //הגדרות ספציפיות לטקסט
                 if(isText){
                     symptom.setConfidence(symptomNode.path("accuracy").asDouble());
@@ -163,16 +165,21 @@ public class SymptomAnalysisService {
                     symptom.setSource("image");
                     symptom.setAnalyzerType("BiomedCLIP");
                 }
-                symptoms.add(symptom);
+
+                // סינון סימפטומים עם רמת ביטחון נמוכה מדי
+                if (symptom.getConfidence() >= MIN_SYMPTOM_CONFIDENCE) {
+                    symptoms.add(symptom);
+                }
             }
+
             String sourceType = isText ? "text" : "image";
-            logger.info("Parsed {} symptoms from {}", symptoms.size(), sourceType);
+            logger.info("Parsed {} symptoms from {} (after filtering)", symptoms.size(), sourceType);
+
         } catch (Exception e) {
             String sourceType = isText ? "text" : "image";
             logger.error("Failed to parse {} symptoms: {}",sourceType,e.getMessage(), e);
         }
+
         return symptoms;
     }
-
 }
-

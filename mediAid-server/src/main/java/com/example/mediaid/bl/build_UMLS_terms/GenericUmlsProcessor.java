@@ -1,6 +1,5 @@
 package com.example.mediaid.bl.build_UMLS_terms;
 
-
 import com.example.mediaid.dal.UMLS_terms.BaseUmlsEntity;
 import com.example.mediaid.dal.UMLS_terms.UmlsTerm;
 import jakarta.persistence.EntityManager;
@@ -17,10 +16,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.util.*;
 import java.util.function.Function;
 
+import static com.example.mediaid.constants.DatabaseConstants.*;
+
 public abstract class GenericUmlsProcessor<T extends BaseUmlsEntity> {
     private static final Logger logger = LoggerFactory.getLogger(GenericUmlsProcessor.class);
-    private static final int MAX_NAME_LENGTH = 250;
-    private static final int BATCH_SIZE = 50;
 
     @PersistenceContext
     protected EntityManager entityManager;  //עבודה מול מסד נתונים
@@ -34,7 +33,6 @@ public abstract class GenericUmlsProcessor<T extends BaseUmlsEntity> {
     protected final List<String> preferredSources;
     protected final Function<String,T> entityCreator;
     protected final String entityTypeName;
-
 
     /**
      * יוצר מעבד גנרי חדש
@@ -74,7 +72,7 @@ public abstract class GenericUmlsProcessor<T extends BaseUmlsEntity> {
         for (Map.Entry<String, String> entry : terms.entrySet()) {
             currentBatch.add(entry);
 
-            if(currentBatch.size() >= BATCH_SIZE){
+            if(currentBatch.size() >= SMALL_BATCH_SIZE){
                 batches.add(new ArrayList<>(currentBatch));
                 currentBatch.clear();
             }
@@ -98,9 +96,9 @@ public abstract class GenericUmlsProcessor<T extends BaseUmlsEntity> {
                             String name = entry.getValue();
 
                             //קיצור שם אם הוא ארוך מדי למסד
-                            if(name!=null && name.length()>MAX_NAME_LENGTH){
-                                logger.warn("Shorting long name: " + name);
-                                name = name.substring(0, MAX_NAME_LENGTH);
+                            if(name != null && name.length() > MAX_ENTITY_NAME_LENGTH){
+                                logger.warn("Shortening long name: " + name);
+                                name = name.substring(0, MAX_ENTITY_NAME_LENGTH);
                                 localSkipped++;
                             }
 
@@ -110,26 +108,38 @@ public abstract class GenericUmlsProcessor<T extends BaseUmlsEntity> {
                             entity.setName(name);
 
                             entityManager.persist(entity);
-
                         }
                         return localSkipped;
                     }catch(Exception e){
-                        logger.warn("Error enter");
+                        logger.warn("Error in batch processing");
                         status.setRollbackOnly();
                         throw e;
                     }
                 }
             });
-            if (batchResult!=null)
+
+            if (batchResult != null)
                 skippedCount += batchResult;
 
-            processedCount+=batch.size();
-            logger.info("Saved {} entities of type {} from {}", processedCount, entityTypeName, totalSize);
-        }
-        logger.info("{} entities of type {} were inserted into the database",processedCount, entityTypeName);
-        if (skippedCount > 0)
-            logger.info("Skipped " + skippedCount + " entities");
+            processedCount += batch.size();
 
+            // דיווח התקדמות
+            if (processedCount % (BATCH_REPORT_INTERVAL * SMALL_BATCH_SIZE) == 0) {
+                logger.info("Processed {} entities of type {} from {}", processedCount, entityTypeName, totalSize);
+            }
+
+            // הפסקה קטנה בין אצוות
+            try {
+                Thread.sleep(BATCH_DELAY_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+
+        logger.info("{} entities of type {} were inserted into the database", processedCount, entityTypeName);
+        if (skippedCount > 0)
+            logger.info("Skipped {} entities due to name length issues", skippedCount);
     }
 
     public void processAndSave(){
@@ -138,7 +148,8 @@ public abstract class GenericUmlsProcessor<T extends BaseUmlsEntity> {
                 logger.info("The data for {} already exists in the database. Skipping import.", entityTypeName);
                 return;
             }
-            logger.info("Processing data for {} from file MSTRY", entityTypeName);
+
+            logger.info("Processing data for {} from file MRSTY", entityTypeName);
             Set<String> entityCuis = UmlsTermHelper.loadCuisBySemanticTypes(semanticTypes);
             logger.info("Loaded {} cuis", entityCuis.size());
 
@@ -154,13 +165,13 @@ public abstract class GenericUmlsProcessor<T extends BaseUmlsEntity> {
             }
             logger.info("Selected {} favorite terms", selectedTerms.size());
 
-            logger.info("Enters data into the database.");
+            logger.info("Inserting data into the database.");
             insertIntoDatabase(selectedTerms);
 
             logger.info("The loading process {} completed successfully.", entityTypeName);
 
         }catch (Exception e){
-            logger.error("Error processing {}: {}", entityTypeName, e.getMessage(),e);
+            logger.error("Error processing {}: {}", entityTypeName, e.getMessage(), e);
         }
     }
 }

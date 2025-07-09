@@ -1,8 +1,5 @@
 package com.example.mediaid.constants;
 
-import java.util.Map;
-import java.util.Set;
-
 /**
  * קבועים הקשורים לניתוח רפואי, גרף רפואי וחישוב סיכונים
  */

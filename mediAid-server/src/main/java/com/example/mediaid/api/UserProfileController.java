@@ -27,6 +27,9 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.*;
 
+import static com.example.mediaid.constants.SecurityConstants.*;
+import static com.example.mediaid.constants.ApiConstants.*;
+
 @RestController
 @RequestMapping("/api/user")
 @CrossOrigin(origins = "*", allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT})
@@ -121,7 +124,7 @@ public class UserProfileController {
         }
     }
 
-        @PostMapping("/logIn")
+    @PostMapping("/logIn")
     public ResponseEntity<?> logIn(@RequestBody LoginRequest loginRequest) {
         try {
             System.out.println("LogIn request received for email: " + loginRequest.getMail());
@@ -140,13 +143,16 @@ public class UserProfileController {
 
                     return ResponseEntity.ok(response);
                 case NOT_EXISTS:
-                    return ResponseEntity.status(404).body(createErrorResponse("User does not exist"));
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                            .body(createErrorResponse("User does not exist"));
                 default:
-                    return ResponseEntity.status(401).body(createErrorResponse("Wrong password"));
+                    return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                            .body(createErrorResponse("Wrong password"));
             }
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.status(500).body(createErrorResponse("Server error: " + e.getMessage()));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Server error: " + e.getMessage()));
         }
     }
 
@@ -188,16 +194,21 @@ public class UserProfileController {
 
                     return ResponseEntity.ok(response);
                 case EMAIL_ALREADY_EXISTS:
-                    return ResponseEntity.status(409).body(createErrorResponse("Email already exists"));
+                    return ResponseEntity.status(HttpStatus.CONFLICT)
+                            .body(createErrorResponse("Email already exists"));
                 case INVALID_PASSWORD:
-                    return ResponseEntity.status(400).body(createErrorResponse("Invalid password length"));
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                            .body(createErrorResponse("Invalid password length"));
                 default:
-                    return ResponseEntity.status(500).body(createErrorResponse("An unexpected error occurred"));
+                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                            .body(createErrorResponse("An unexpected error occurred"));
             }
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(createErrorResponse("Server error: " + e.getMessage()));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Server error: " + e.getMessage()));
         }
     }
+
     /**
      * עדכון גורמי סיכון - מסונכרן לכל המערכות
      */
@@ -232,10 +243,12 @@ public class UserProfileController {
         try {
             UUID userId = extractUserIdFromRequest(request);
             if (userId == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(createErrorResponse("Invalid or missing authentication token"));
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(createErrorResponse("Invalid or missing authentication token"));
             }
+
             @SuppressWarnings("unchecked")
-                  List<Map<String, Object>> medications = (List<Map<String, Object>>) medicationData.get("medications");
+            List<Map<String, Object>> medications = (List<Map<String, Object>>) medicationData.get("medications");
 
             if (medications == null || medications.isEmpty()) {
                 return ResponseEntity.badRequest().body(createErrorResponse("No medications found"));
@@ -245,7 +258,8 @@ public class UserProfileController {
             User user = userRepository.findById(userId).orElse(null);
 
             if (user == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(createErrorResponse("User not found"));
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(createErrorResponse("User not found"));
             }
 
             for (Map<String, Object> med : medications) {
@@ -257,9 +271,9 @@ public class UserProfileController {
                     medication = new Medication();
                     medication.setCui(cui);
                     medication.setName(name);
-                    medication= medicationRepository.save(medication);
-
+                    medication = medicationRepository.save(medication);
                 }
+
                 //צור קישור
                 UserMedication userMedication = new UserMedication();
                 userMedication.setUser(user);
@@ -279,6 +293,7 @@ public class UserProfileController {
                 UserMedication saved = userMedicationRepository.save(userMedication);
                 savedMedications.add(saved);
             }
+
             return ResponseEntity.ok(Map.of(
                     "message", "Medications added successfully",
                     "medications", savedMedications.stream().map(med->Map.of(
@@ -289,7 +304,8 @@ public class UserProfileController {
                     )).toList()
             ));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse("Error saving medications: " + e.getMessage()));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Error saving medications: " + e.getMessage()));
         }
     }
 
@@ -372,7 +388,7 @@ public class UserProfileController {
         try {
             String authHeader = request.getHeader("Authorization");
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                String token = authHeader.substring(7);
+                String token = authHeader.substring(JWT_PREFIX_LENGTH);
                 if (jwtUtil.isValid(token)) {
                     return jwtUtil.extractUserId(token);
                 }
@@ -405,5 +421,4 @@ public class UserProfileController {
         if (riskScore < 0.7) return "High Risk";
         return "Very High Risk";
     }
-
 }

@@ -1,5 +1,3 @@
-
-
 package com.example.mediaid.api;
 
 import com.example.mediaid.bl.emergency.BasicTreatmentRecommendationEngine;
@@ -21,6 +19,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
 
+import static com.example.mediaid.constants.ApiConstants.*;
+import static com.example.mediaid.constants.MedicalAnalysisConstants.*;
+import static com.example.mediaid.constants.SecurityConstants.JWT_PREFIX_LENGTH;
+
 @RestController
 @RequestMapping("/api")
 @CrossOrigin(origins = "*", allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST})
@@ -40,13 +42,11 @@ public class RecommendationController {
     @Autowired
     private MedicalGraphAnalyticsService graphAnalyticsService;
 
-
     @Autowired
     private JwtUtil jwtUtil;
 
     @Value("${mediaid.analysis.use-advanced-engine:true}")
     private boolean useAdvancedEngine;
-
 
     /**
      * העלאת נתונים לניתוח - משולב (טקסט + תמונה + אודיו)
@@ -72,7 +72,7 @@ public class RecommendationController {
             Set<ExtractedSymptom> allExtractedSymptoms = new LinkedHashSet<>();
             List<String> processedInputs = new ArrayList<>();
 
-            // שלב 1: עיבוד נתונים (כמו קודם)
+            // שלב 1: עיבוד נתונים
             if (text != null && !text.trim().isEmpty()) {
                 logger.info("Processing text data for user: {}", userId);
                 try {
@@ -159,7 +159,6 @@ public class RecommendationController {
         }
     }
 
-
     /**
      * קבלת מידע רפואי נוכחי של המשתמש (לצורך בדיקה)
      */
@@ -213,7 +212,7 @@ public class RecommendationController {
         try {
             String authHeader = request.getHeader("Authorization");
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                String token = authHeader.substring(7);
+                String token = authHeader.substring(JWT_PREFIX_LENGTH);
                 if (jwtUtil.isValid(token)) {
                     return jwtUtil.extractUserId(token);
                 }
@@ -227,7 +226,7 @@ public class RecommendationController {
 
     private Map<String, String> createErrorResponse(String message) {
         Map<String, String> error = new HashMap<>();
-        error.put("error", "DATA_ANALYSIS_ERROR");
+        error.put("error", DATA_ANALYSIS_ERROR);
         error.put("message", message);
         return error;
     }
@@ -249,6 +248,7 @@ public class RecommendationController {
         basicPlan.setUrgencyLevel(TreatmentPlan.UrgencyLevel.MEDIUM);
         basicPlan.setMainConcern("Symptoms were found that require medical consultation");
         basicPlan.setReasoning("A full analysis could not be performed. It is recommended to consult a medical professional.");
+
         // פעולות מיידיות בסיסיות
         List<com.example.mediaid.dto.emergency.ImmediateAction> actions = new ArrayList<>();
         com.example.mediaid.dto.emergency.ImmediateAction action = new com.example.mediaid.dto.emergency.ImmediateAction();
@@ -258,6 +258,7 @@ public class RecommendationController {
         action.setPriority(1);
         actions.add(action);
         basicPlan.setImmediateActions(actions);
+
         // ביקור רופא
         List<com.example.mediaid.dto.emergency.DoctorVisit> visits = new ArrayList<>();
         com.example.mediaid.dto.emergency.DoctorVisit visit = new com.example.mediaid.dto.emergency.DoctorVisit();
@@ -266,6 +267,7 @@ public class RecommendationController {
         visit.setUrgency("Within a few days");
         visits.add(visit);
         basicPlan.setDoctorVisits(visits);
+
         // אין בדיקות או קשרים נוספים כרגע
         basicPlan.setRecommendedTests(new ArrayList<>());
         basicPlan.setFoundConnections(new ArrayList<>());
@@ -276,8 +278,6 @@ public class RecommendationController {
 
         return basicPlan;
     }
-
-
 
     @PostMapping("/advanced-graph-analysis")
     public ResponseEntity<?> performAdvancedGraphAnalysis(
@@ -296,7 +296,7 @@ public class RecommendationController {
             // חילוץ פרמטרים מהבקשה
             @SuppressWarnings("unchecked")
             List<String> symptomNames = (List<String>) analysisRequest.get("symptoms");
-            int maxPathDepth = (Integer) analysisRequest.getOrDefault("maxDepth", 4);
+            int maxPathDepth = (Integer) analysisRequest.getOrDefault("maxDepth", MAX_PATH_DEPTH);
             boolean includeCommunities = (Boolean) analysisRequest.getOrDefault("includeCommunities", true);
             boolean includeHubs = (Boolean) analysisRequest.getOrDefault("includeHubs", true);
 
@@ -306,7 +306,7 @@ public class RecommendationController {
                 ExtractedSymptom symptom = new ExtractedSymptom();
                 symptom.setName(symptomName);
                 symptom.setCui("MANUAL_" + symptomName.hashCode()); // CUI זמני
-                symptom.setConfidence(1.0);
+                symptom.setConfidence(MAX_PRACTICAL_CONFIDENCE);
                 symptom.setSource("manual");
                 symptoms.add(symptom);
             }
@@ -336,7 +336,7 @@ public class RecommendationController {
 
             // 3. Risk Propagation Analysis
             var riskPropagation = graphAnalyticsService.calculateRiskPropagation(
-                    userContext.getRiskFactors(), symptoms, 0.85);
+                    userContext.getRiskFactors(), symptoms, RISK_DECAY_FACTOR);
             graphAnalysisResults.put("riskPropagation", riskPropagation);
             logger.info("Risk propagation: {:.3f} total risk", riskPropagation.getTotalRiskScore());
 
@@ -541,5 +541,4 @@ public class RecommendationController {
         allEntities.addAll(context.getRiskFactors());
         return allEntities;
     }
-
 }
