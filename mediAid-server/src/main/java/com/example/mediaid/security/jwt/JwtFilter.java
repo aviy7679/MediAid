@@ -1,5 +1,6 @@
 package com.example.mediaid.security.jwt;
 
+import com.example.mediaid.constants.SecurityConstants;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,14 +22,17 @@ public class JwtFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-                                    FilterChain filterChain)throws ServletException, IOException{
-        String header = request.getHeader("Authorization");
-        if(header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
+                                    FilterChain filterChain) throws ServletException, IOException {
+        String header = request.getHeader(SecurityConstants.JWT_HEADER_NAME);
 
-            if (jwtUtil.isValid(token)){
+        if (header != null && header.startsWith(SecurityConstants.JWT_TOKEN_PREFIX)) {
+            String token = header.substring(SecurityConstants.JWT_PREFIX_LENGTH);
+
+            if (jwtUtil.isValid(token)) {
                 String username = jwtUtil.extractUsername(token);
-                UsernamePasswordAuthenticationToken auth =  new UsernamePasswordAuthenticationToken(username, null, new ArrayList<>());
+                UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                        username, null, new ArrayList<>()
+                );
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }

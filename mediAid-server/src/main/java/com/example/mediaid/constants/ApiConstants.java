@@ -253,4 +253,28 @@ public class ApiConstants {
     /** משקל מקסימלי (ק"ג) */
     public static final int MAX_WEIGHT = 300;
     // סיבה: משקל מקסימלי סביר
+
+    // =============== הגדרות UMLS ===============
+
+    /** אורך מקסימלי של CUI */
+    public static final int CUI_LENGTH = 8;
+    // סיבה: אורך סטנדרטי של CUI ב-UMLS
+
+    /** אורך מקסימלי לשם ישות רפואית */
+    public static final int MAX_ENTITY_NAME_LENGTH = 250;
+    // סיבה: מספיק לשמות רפואיים באנגלית
+
+    // =============== הגדרות JWT ===============
+
+    /** אורך prefix של Bearer token */
+    public static final int BEARER_PREFIX_LENGTH = 7;
+    // סיבה: אורך המחרוזת "Bearer " כדי לחתוך אותה
+
+    /** שם header לAuthorization */
+    public static final String AUTHORIZATION_HEADER = "Authorization";
+    // סיבה: שם תקני לheader של authentication
+
+    /** prefix לJWT token */
+    public static final String BEARER_PREFIX = "Bearer ";
+    // סיבה: פרפיקס תקני לטוקן Bearer
 }

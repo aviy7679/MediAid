@@ -1,5 +1,6 @@
 package com.example.mediaid.neo4j;
 
+import com.example.mediaid.constants.DatabaseConstants;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Session;
 import org.neo4j.driver.Values;
@@ -20,10 +21,10 @@ public class RiskFactorSer {
     private static final Logger logger = LoggerFactory.getLogger(RiskFactorSer.class);
     private final Driver neo4jDriver;
 
-    // טבלת גורמי סיכון
+    // טבלת גורמי סיכון עם קבועים
     private static final Map<String, RiskFactorConfig> RISK_FACTOR_CONFIGS = new HashMap<>();
     static {
-        // גיל
+        // גיל - מבוסס על הגדרות מהקבועים
         RISK_FACTOR_CONFIGS.put("AGE", new RiskFactorConfig(
                 18, 120,
                 Map.of(
@@ -37,7 +38,7 @@ public class RiskFactorSer {
                 Map.of("40", 1.1, "50", 1.3, "60", 1.6, "70", 1.9, "80", 2.2)
         ));
 
-        // BMI
+        // BMI - מבוסס על הגדרות מהקבועים
         RISK_FACTOR_CONFIGS.put("BMI", new RiskFactorConfig(
                 15, 50,
                 Map.of(
@@ -101,27 +102,43 @@ public class RiskFactorSer {
     public long createOrUpdateRiskFactor(String type, double value) {
         logger.debug("Creating/updating risk factor: {} with value: {}", type, value);
 
-        try (Session session = neo4jDriver.session()) {
-            return session.writeTransaction(tx -> {
-                var result = tx.run(
-                        "MERGE (rf:RiskFactor {type: $type}) " +
-                                "SET rf.value = $value, rf.updated_at = datetime() " +
-                                "RETURN id(rf) as nodeId",
-                        Values.parameters("type", type, "value", value)
-                );
+        int retryCount = 0;
+        while (retryCount < DatabaseConstants.MAX_RETRIES) {
+            try (Session session = neo4jDriver.session()) {
+                return session.writeTransaction(tx -> {
+                    var result = tx.run(
+                            "MERGE (rf:RiskFactor {type: $type}) " +
+                                    "SET rf.value = $value, rf.updated_at = datetime() " +
+                                    "RETURN id(rf) as nodeId",
+                            Values.parameters("type", type, "value", value)
+                    );
 
-                if (result.hasNext()) {
-                    long nodeId = result.next().get("nodeId").asLong();
-                    logger.debug("Risk factor {} updated with ID: {}", type, nodeId);
-                    return nodeId;
+                    if (result.hasNext()) {
+                        long nodeId = result.next().get("nodeId").asLong();
+                        logger.debug("Risk factor {} updated with ID: {}", type, nodeId);
+                        return nodeId;
+                    }
+
+                    return -1L;
+                });
+            } catch (Exception e) {
+                retryCount++;
+                if (retryCount < DatabaseConstants.MAX_RETRIES) {
+                    logger.warn("Retry {} for risk factor creation: {}", retryCount, e.getMessage());
+                    try {
+                        Thread.sleep(DatabaseConstants.RETRY_DELAY_MS);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                } else {
+                    logger.error("Error creating/updating risk factor {} after {} retries: {}",
+                            type, DatabaseConstants.MAX_RETRIES, e.getMessage());
+                    return -1L;
                 }
-
-                return -1L;
-            });
-        } catch (Exception e) {
-            logger.error("Error creating/updating risk factor {}: {}", type, e.getMessage());
-            return -1L;
+            }
         }
+        return -1L;
     }
 
     /**
@@ -148,57 +165,72 @@ public class RiskFactorSer {
         double factorWeight = calculateWeightForValue(config, value);
         logger.debug("Calculated factor weight: {} for value: {}", factorWeight, value);
 
-        try (Session session = neo4jDriver.session()) {
-            // עדכון קשרים למחלות מושפעות
-            for (Map.Entry<String, Double> entry : config.diseaseCuiToWeight.entrySet()) {
-                String diseaseCui = entry.getKey();
-                double diseaseSpecificWeight = entry.getValue() * factorWeight;
+        int retryCount = 0;
+        while (retryCount < DatabaseConstants.MAX_RETRIES) {
+            try (Session session = neo4jDriver.session()) {
+                // עדכון קשרים למחלות מושפעות
+                for (Map.Entry<String, Double> entry : config.diseaseCuiToWeight.entrySet()) {
+                    String diseaseCui = entry.getKey();
+                    double diseaseSpecificWeight = entry.getValue() * factorWeight;
 
-                session.writeTransaction(tx -> {
-                    // מחיקת קשרים קיימים
-                    tx.run(
-                            "MATCH (rf:RiskFactor {type: $type})-[r:INCREASES_RISK_OF]->(d {cui: $cui}) " +
-                                    "DELETE r",
-                            Values.parameters("type", type, "cui", diseaseCui)
-                    );
+                    session.writeTransaction(tx -> {
+                        // מחיקת קשרים קיימים
+                        tx.run(
+                                "MATCH (rf:RiskFactor {type: $type})-[r:INCREASES_RISK_OF]->(d {cui: $cui}) " +
+                                        "DELETE r",
+                                Values.parameters("type", type, "cui", diseaseCui)
+                        );
 
-                    // יצירת קשר חדש עם משקל מעודכן
-                    var result = tx.run(
-                            "MATCH (rf:RiskFactor {type: $type}) " +
-                                    "MATCH (d {cui: $cui}) " +
-                                    "CREATE (rf)-[r:INCREASES_RISK_OF {" +
-                                    "weight: $weight, " +
-                                    "risk_level: $riskLevel, " +
-                                    "source: 'user_profile', " +
-                                    "created_at: datetime()}]->(d) " +
-                                    "RETURN count(r) as created",
-                            Values.parameters(
-                                    "type", type,
-                                    "cui", diseaseCui,
-                                    "weight", Math.min(0.99, diseaseSpecificWeight),
-                                    "riskLevel", categorizeRiskLevel(diseaseSpecificWeight)
-                            )
-                    );
+                        // יצירת קשר חדש עם משקל מעודכן
+                        var result = tx.run(
+                                "MATCH (rf:RiskFactor {type: $type}) " +
+                                        "MATCH (d {cui: $cui}) " +
+                                        "CREATE (rf)-[r:INCREASES_RISK_OF {" +
+                                        "weight: $weight, " +
+                                        "risk_level: $riskLevel, " +
+                                        "source: 'user_profile', " +
+                                        "created_at: datetime()}]->(d) " +
+                                        "RETURN count(r) as created",
+                                Values.parameters(
+                                        "type", type,
+                                        "cui", diseaseCui,
+                                        "weight", Math.min(0.99, diseaseSpecificWeight),
+                                        "riskLevel", categorizeRiskLevel(diseaseSpecificWeight)
+                                )
+                        );
 
-                    if (result.hasNext()) {
-                        long created = result.next().get("created").asLong();
-                        if (created > 0) {
-                            logger.debug("Created risk relationship: {} -> {} (weight: {})",
-                                    type, diseaseCui, diseaseSpecificWeight);
+                        if (result.hasNext()) {
+                            long created = result.next().get("created").asLong();
+                            if (created > 0) {
+                                logger.debug("Created risk relationship: {} -> {} (weight: {})",
+                                        type, diseaseCui, diseaseSpecificWeight);
+                            }
                         }
+
+                        return null;
+                    });
+                }
+
+                logger.info("Updated risk factor relationships for {} with value {}", type, value);
+                return; // Success, exit retry loop
+
+            } catch (Exception e) {
+                retryCount++;
+                if (retryCount < DatabaseConstants.MAX_RETRIES) {
+                    logger.warn("Retry {} for risk factor relationships update: {}", retryCount, e.getMessage());
+                    try {
+                        Thread.sleep(DatabaseConstants.RETRY_DELAY_MS);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
                     }
-
-                    return null;
-                });
+                } else {
+                    logger.error("Error updating relationships for risk factor {} after {} retries: {}",
+                            type, DatabaseConstants.MAX_RETRIES, e.getMessage());
+                }
             }
-
-            logger.info("Updated risk factor relationships for {} with value {}", type, value);
-
-        } catch (Exception e) {
-            logger.error("Error updating relationships for risk factor {}: {}", type, e.getMessage());
         }
     }
-
 
     /**
      * קבלת סטטיסטיקות על גורמי הסיכון
@@ -306,46 +338,62 @@ public class RiskFactorSer {
     public void createUserRiskFactorRelationships(String userId, Map<String, Double> userRiskFactors) {
         logger.info("Creating user-specific risk factor relationships for user: {}", userId);
 
-        try (Session session = neo4jDriver.session()) {
-            session.writeTransaction(tx -> {
-                // יצירת צומת משתמש אם לא קיים
-                tx.run(
-                        "MERGE (u:User {userId: $userId}) " +
-                                "SET u.updated_at = datetime()",
-                        Values.parameters("userId", userId)
-                );
-
-                // יצירת קשרים לגורמי סיכון
-                for (Map.Entry<String, Double> entry : userRiskFactors.entrySet()) {
-                    String riskType = entry.getKey();
-                    double value = entry.getValue();
-
-                    // מחיקת קשרים קיימים
+        int retryCount = 0;
+        while (retryCount < DatabaseConstants.MAX_RETRIES) {
+            try (Session session = neo4jDriver.session()) {
+                session.writeTransaction(tx -> {
+                    // יצירת צומת משתמש אם לא קיים
                     tx.run(
-                            "MATCH (u:User {userId: $userId})-[r:HAS_RISK_FACTOR]->(rf:RiskFactor {type: $type}) " +
-                                    "DELETE r",
-                            Values.parameters("userId", userId, "type", riskType)
+                            "MERGE (u:User {userId: $userId}) " +
+                                    "SET u.updated_at = datetime()",
+                            Values.parameters("userId", userId)
                     );
 
-                    // יצירת קשר חדש
-                    tx.run(
-                            "MATCH (u:User {userId: $userId}) " +
-                                    "MATCH (rf:RiskFactor {type: $type}) " +
-                                    "CREATE (u)-[r:HAS_RISK_FACTOR {" +
-                                    "value: $value, " +
-                                    "created_at: datetime()}]->(rf)",
-                            Values.parameters("userId", userId, "type", riskType, "value", value)
-                    );
+                    // יצירת קשרים לגורמי סיכון
+                    for (Map.Entry<String, Double> entry : userRiskFactors.entrySet()) {
+                        String riskType = entry.getKey();
+                        double value = entry.getValue();
+
+                        // מחיקת קשרים קיימים
+                        tx.run(
+                                "MATCH (u:User {userId: $userId})-[r:HAS_RISK_FACTOR]->(rf:RiskFactor {type: $type}) " +
+                                        "DELETE r",
+                                Values.parameters("userId", userId, "type", riskType)
+                        );
+
+                        // יצירת קשר חדש
+                        tx.run(
+                                "MATCH (u:User {userId: $userId}) " +
+                                        "MATCH (rf:RiskFactor {type: $type}) " +
+                                        "CREATE (u)-[r:HAS_RISK_FACTOR {" +
+                                        "value: $value, " +
+                                        "created_at: datetime()}]->(rf)",
+                                Values.parameters("userId", userId, "type", riskType, "value", value)
+                        );
+                    }
+
+                    return null;
+                });
+
+                logger.info("Created {} risk factor relationships for user: {}",
+                        userRiskFactors.size(), userId);
+                return; // Success, exit retry loop
+
+            } catch (Exception e) {
+                retryCount++;
+                if (retryCount < DatabaseConstants.MAX_RETRIES) {
+                    logger.warn("Retry {} for user risk factor relationships creation: {}", retryCount, e.getMessage());
+                    try {
+                        Thread.sleep(DatabaseConstants.RETRY_DELAY_MS);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                } else {
+                    logger.error("Error creating user risk factor relationships for {} after {} retries: {}",
+                            userId, DatabaseConstants.MAX_RETRIES, e.getMessage());
                 }
-
-                return null;
-            });
-
-            logger.info("Created {} risk factor relationships for user: {}",
-                    userRiskFactors.size(), userId);
-
-        } catch (Exception e) {
-            logger.error("Error creating user risk factor relationships for {}: {}", userId, e.getMessage());
+            }
         }
     }
 }
