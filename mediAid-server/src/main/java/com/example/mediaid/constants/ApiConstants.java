@@ -254,6 +254,40 @@ public class ApiConstants {
     public static final int MAX_WEIGHT = 300;
     // סיבה: משקל מקסימלי סביר
 
+    // =============== הגדרות מדדים רפואיים ===============
+
+    /** רמת גלוקוז מינימלית (mg/dL) */
+    public static final double MIN_BLOOD_GLUCOSE = 50;
+    // סיבה: מתחת לזה היפוגליקמיה חמורה
+
+    /** רמת גלוקוז מקסימלית (mg/dL) */
+    public static final double MAX_BLOOD_GLUCOSE = 500;
+    // סיבה: מעל זה היפרגליקמיה חמורה
+
+    /** לחץ דם סיסטולי מינימלי (mmHg) */
+    public static final int MIN_SYSTOLIC_BP = 70;
+    // סיבה: מתחת לזה היפוטנזיה חמורה
+
+    /** לחץ דם סיסטולי מקסימלי (mmHg) */
+    public static final int MAX_SYSTOLIC_BP = 250;
+    // סיבה: מעל זה היפרטנזיה חמורה
+
+    /** לחץ דם דיאסטולי מינימלי (mmHg) */
+    public static final int MIN_DIASTOLIC_BP = 40;
+    // סיבה: מתחת לזה היפוטנזיה חמורה
+
+    /** לחץ דם דיאסטולי מקסימלי (mmHg) */
+    public static final int MAX_DIASTOLIC_BP = 150;
+    // סיבה: מעל זה היפרטנזיה חמורה
+
+    /** מספר שעות שינה מינימלי */
+    public static final int MIN_SLEEP_HOURS = 3;
+    // סיבה: פחות מזה לא תקין לטווח ארוך
+
+    /** מספר שעות שינה מקסימלי */
+    public static final int MAX_SLEEP_HOURS = 16;
+    // סיבה: יותר מזה עלול להצביע על בעיה רפואית
+
     // =============== הגדרות UMLS ===============
 
     /** אורך מקסימלי של CUI */

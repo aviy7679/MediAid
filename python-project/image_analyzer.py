@@ -4,8 +4,7 @@ import time
 from PIL import Image
 from open_clip import create_model_from_pretrained, get_tokenizer
 from skin_umls_codes import verified_skin_conditions_umls
-
-MODEL_NAME = 'hf-hub:microsoft/BiomedCLIP-PubMedBERT_256-vit_base_patch16_224'
+from config import BIOMEDCLIP_MODEL_NAME, CONTEXT_LENGTH_DEFAULT
 
 
 class ImageAnalyzer:
@@ -30,8 +29,8 @@ class ImageAnalyzer:
             start_time = time.time()
             self.logger.info("Loading BiomedCLIP model...")
 
-            self.model, self.preprocess = create_model_from_pretrained(MODEL_NAME)
-            self.tokenizer = get_tokenizer(MODEL_NAME)
+            self.model, self.preprocess = create_model_from_pretrained(BIOMEDCLIP_MODEL_NAME)
+            self.tokenizer = get_tokenizer(BIOMEDCLIP_MODEL_NAME)
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             self.model.to(self.device).eval()
             self.labels = list(verified_skin_conditions_umls.values())
@@ -47,8 +46,19 @@ class ImageAnalyzer:
         if not self.is_loaded:
             self.load_model()
 
-    def analyze_image(self, image_input, template='this is a photo of ', context_length=256):
+    def analyze_image(self, image_input, template='this is a photo of ', context_length=None):
+        """
+        ניתוח תמונה עם BiomedCLIP
+
+        Args:
+            image_input: PIL Image או נתיב לתמונה
+            template: תבנית הטקסט לזיהוי
+            context_length: אורך הקונטקסט (ברירת מחדל מהקבועים)
+        """
         self._ensure_model_loaded()
+
+        if context_length is None:
+            context_length = CONTEXT_LENGTH_DEFAULT
 
         try:
             # טעינת תמונה

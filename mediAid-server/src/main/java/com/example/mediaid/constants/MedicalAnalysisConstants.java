@@ -5,6 +5,12 @@ package com.example.mediaid.constants;
  */
 public class MedicalAnalysisConstants {
 
+    // =============== הגדרות המרת יחידות ===============
+
+    /** המרת סנטימטרים למטרים */
+    public static final double CENTIMETERS_TO_METERS = 100.0;
+    // סיבה: המרה סטנדרטית מסנטימטרים למטרים לחישוב BMI
+
     // =============== הגדרות ניתוח מסלולים רפואיים ===============
 
     /** עומק מקסימלי לחיפוש מסלולים בגרף */

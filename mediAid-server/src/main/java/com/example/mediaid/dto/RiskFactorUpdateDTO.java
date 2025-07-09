@@ -1,5 +1,7 @@
 package com.example.mediaid.dto;
 
+import com.example.mediaid.constants.ApiConstants;
+import com.example.mediaid.constants.MedicalAnalysisConstants;
 import com.example.mediaid.dal.user_medical_history.RiskFactorEnums.*;
 import lombok.Data;
 
@@ -67,7 +69,7 @@ public class RiskFactorUpdateDTO {
      */
     public Double calculateBMI() {
         if (height != null && weight != null && height > 0 && weight > 0) {
-            double heightInMeters = height / 100.0;
+            double heightInMeters = height / MedicalAnalysisConstants.CENTIMETERS_TO_METERS;
             double calculatedBmi = weight / (heightInMeters * heightInMeters);
             return Math.round(calculatedBmi * 100.0) / 100.0;
         }
@@ -89,27 +91,27 @@ public class RiskFactorUpdateDTO {
      */
     public boolean isDataValid() {
         // בדיקות בסיסיות
-        if (height != null && (height < 50 || height > 250)) {
+        if (height != null && (height < ApiConstants.MIN_HEIGHT || height > ApiConstants.MAX_HEIGHT)) {
             return false;
         }
 
-        if (weight != null && (weight < 20 || weight > 300)) {
+        if (weight != null && (weight < ApiConstants.MIN_WEIGHT || weight > ApiConstants.MAX_WEIGHT)) {
             return false;
         }
 
-        if (bloodGlucose != null && (bloodGlucose < 50 || bloodGlucose > 500)) {
+        if (bloodGlucose != null && (bloodGlucose < ApiConstants.MIN_BLOOD_GLUCOSE || bloodGlucose > ApiConstants.MAX_BLOOD_GLUCOSE)) {
             return false;
         }
 
-        if (systolicBloodPressure != null && (systolicBloodPressure < 70 || systolicBloodPressure > 250)) {
+        if (systolicBloodPressure != null && (systolicBloodPressure < ApiConstants.MIN_SYSTOLIC_BP || systolicBloodPressure > ApiConstants.MAX_SYSTOLIC_BP)) {
             return false;
         }
 
-        if (diastolicBloodPressure != null && (diastolicBloodPressure < 40 || diastolicBloodPressure > 150)) {
+        if (diastolicBloodPressure != null && (diastolicBloodPressure < ApiConstants.MIN_DIASTOLIC_BP || diastolicBloodPressure > ApiConstants.MAX_DIASTOLIC_BP)) {
             return false;
         }
 
-        if (sleepHours != null && (sleepHours < 3 || sleepHours > 16)) {
+        if (sleepHours != null && (sleepHours < ApiConstants.MIN_SLEEP_HOURS || sleepHours > ApiConstants.MAX_SLEEP_HOURS)) {
             return false;
         }
 

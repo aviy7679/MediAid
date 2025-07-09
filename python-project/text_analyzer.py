@@ -1,13 +1,14 @@
 from medcat.cat import CAT
 import time
 import logging
+from config import get_model_path_with_fallback, UMLS_TYPE_SIGN_SYMPTOM, UMLS_TYPE_FINDING
 
-MODEL_PATH = "D:\\MediAid\\umls-2024AB-full\\umls_sm_pt2ch_533bab5115c6c2d6.zip"
 
 class TextAnalyzer:
     def __init__(self, auto_load=False):
         self.cat = None
         self.is_loaded = False
+        self.model_path = None
         self.logger = logging.getLogger(__name__)
 
         if auto_load:
@@ -22,7 +23,12 @@ class TextAnalyzer:
         try:
             start_time = time.time()
             self.logger.info("Loading MedCAT model...")
-            self.cat = CAT.load_model_pack(MODEL_PATH)
+
+            # קבלת נתיב המודל עם fallback
+            self.model_path = get_model_path_with_fallback()
+            self.logger.info(f"Using model path: {self.model_path}")
+
+            self.cat = CAT.load_model_pack(self.model_path)
             self.is_loaded = True
 
             end_time = time.time()
@@ -52,7 +58,7 @@ class TextAnalyzer:
             for ent_id, data in entities.get("entities", {}).items():
                 type_ids = data.get("type_ids", [])
                 # T184 = Sign or Symptom, T033 = Finding
-                if "T184" in type_ids or "T033" in type_ids:
+                if UMLS_TYPE_SIGN_SYMPTOM in type_ids or UMLS_TYPE_FINDING in type_ids:
                     symptom = {
                         "cui": data.get("cui"),
                         "name": data.get("pretty_name"),
