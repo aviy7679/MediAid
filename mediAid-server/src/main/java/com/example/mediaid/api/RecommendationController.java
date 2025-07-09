@@ -21,7 +21,7 @@ import java.util.*;
 
 import static com.example.mediaid.constants.ApiConstants.*;
 import static com.example.mediaid.constants.MedicalAnalysisConstants.*;
-import static com.example.mediaid.constants.SecurityConstants.JWT_PREFIX_LENGTH;
+import static com.example.mediaid.constants.SecurityConstants.*;
 
 @RestController
 @RequestMapping("/api")
@@ -210,8 +210,8 @@ public class RecommendationController {
     // Helper methods
     private UUID extractUserIdFromRequest(HttpServletRequest request) {
         try {
-            String authHeader = request.getHeader("Authorization");
-            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String authHeader = request.getHeader(JWT_HEADER_NAME);
+            if (authHeader != null && authHeader.startsWith(JWT_TOKEN_PREFIX)) {
                 String token = authHeader.substring(JWT_PREFIX_LENGTH);
                 if (jwtUtil.isValid(token)) {
                     return jwtUtil.extractUserId(token);
@@ -231,14 +231,6 @@ public class RecommendationController {
         return error;
     }
 
-    private String determineAnalysisType(List<String> processedInputs) {
-        if (processedInputs.size() == 1) {
-            return processedInputs.get(0);
-        } else if (processedInputs.size() > 1) {
-            return "combined";
-        }
-        return "none";
-    }
 
     //תכנית בסיסת ברירת מחדל
     private TreatmentPlan createBasicTreatmentPlan(Set<ExtractedSymptom> symptoms) {
@@ -255,7 +247,7 @@ public class RecommendationController {
         action.setType(com.example.mediaid.dto.emergency.ImmediateAction.ActionType.SEEK_IMMEDIATE_CARE);
         action.setDescription("Consult your primary care physician");
         action.setReason("Clarify the reported symptoms");
-        action.setPriority(1);
+        action.setPriority(MIN_PAGE_SIZE);
         actions.add(action);
         basicPlan.setImmediateActions(actions);
 

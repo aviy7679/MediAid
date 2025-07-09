@@ -2,6 +2,7 @@ package com.example.mediaid.bl.build_UMLS_terms;
 
 import com.example.mediaid.dal.UMLS_terms.Symptom;
 import com.example.mediaid.dal.UMLS_terms.SymptomRepository;
+import com.example.mediaid.constants.DatabaseConstants;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
@@ -13,23 +14,14 @@ import java.util.Set;
 
 @Component
 public class SymptomProcessor extends GenericUmlsProcessor<Symptom> implements CommandLineRunner {
-    // קטגוריות סמנטיות לאיתור סימפטומים
-    private static final Set<String> SYMPTOM_SEMANTIC_TYPES = new HashSet<>(Arrays.asList(
-            "T184"  // Sign or Symptom
-    ));
-
-    // מקורות מידע מועדפים לבחירת מונחים
-    private static final List<String> PREFERRED_SOURCES = Arrays.asList(
-            "SNOMEDCT_US", // SNOMED CT
-            "MSH",        // Medical Subject Headings
-            "MEDDRA",     // Medical Dictionary for Regulatory Activities
-            "ICD10CM"     // ICD-10 Clinical Modification
-    );
 
     @Autowired
     public SymptomProcessor(SymptomRepository repository) {
-        super(repository, SYMPTOM_SEMANTIC_TYPES, PREFERRED_SOURCES,
-                cui -> new Symptom(), "Symptoms");
+        super(repository,
+                new HashSet<>(Arrays.asList(DatabaseConstants.SYMPTOM_SEMANTIC_TYPES)),
+                Arrays.asList(DatabaseConstants.SYMPTOM_PREFERRED_SOURCES),
+                cui -> new Symptom(),
+                "Symptoms");
     }
 
     @Override

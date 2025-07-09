@@ -1,6 +1,7 @@
 package com.example.mediaid.bl.build_UMLS_terms;
 
 import com.example.mediaid.dal.UMLS_terms.UmlsTerm;
+import com.example.mediaid.constants.DatabaseConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,10 +13,6 @@ import java.util.*;
 public class UmlsTermHelper {
     private static final Logger logger = LoggerFactory.getLogger(UmlsTermHelper.class);
 
-    // קבצי UMLS
-    private static final String MRCONSO_FILE = "D:\\MediAid\\umls-2024AB-full\\2024AB-full\\2024AB\\META\\MRCONSO.RRF";
-    private static final String MRSTY_FILE = "D:\\MediAid\\umls-2024AB-full\\2024AB-full\\2024AB\\META\\MRSTY.RRF";
-
     /**
      * טוען CUIs מסוג סמנטי מסוים מקובץ MRSTY
      */
@@ -24,7 +21,7 @@ public class UmlsTermHelper {
         int lineNumber = 0;
         int validLines = 0;
         int skippedLines = 0;
-        try (BufferedReader reader = new BufferedReader(new FileReader(MRSTY_FILE))) {
+        try (BufferedReader reader = new BufferedReader(new FileReader(DatabaseConstants.MRSTY_FILE_PATH))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
@@ -62,7 +59,7 @@ public class UmlsTermHelper {
      */
     public static Map<String, List<UmlsTerm>> loadTermsForCuis(Set<String> cuis) throws IOException {
         Map<String,List<UmlsTerm>> allTerms = new HashMap<>();
-        try(BufferedReader reader = new BufferedReader(new FileReader(MRCONSO_FILE))) {
+        try(BufferedReader reader = new BufferedReader(new FileReader(DatabaseConstants.MRCONSO_FILE_PATH))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 String[] fields = line.split("\\|");
@@ -73,10 +70,10 @@ public class UmlsTermHelper {
                 String ispref = fields[16]; // האם מונח מועדף
                 String name = fields[14]; // שם המונח
 
-            if(cuis.contains(cui) && "ENG".equals(lang)) {
-            UmlsTerm term = new UmlsTerm(name, sab, tty, ispref);
-            allTerms.computeIfAbsent(cui, k -> new ArrayList<>()).add(term);
-            }
+                if(cuis.contains(cui) && "ENG".equals(lang)) {
+                    UmlsTerm term = new UmlsTerm(name, sab, tty, ispref);
+                    allTerms.computeIfAbsent(cui, k -> new ArrayList<>()).add(term);
+                }
             }
 
         }
@@ -95,7 +92,7 @@ public class UmlsTermHelper {
             int sabCompare = Integer.compare(
                     preferredSources.contains(term1.getSab())?preferredSources.indexOf(term1.getSab()):preferredSources.size(),
                     preferredSources.contains(term2.getSab())?preferredSources.indexOf(term1.getSab()):preferredSources.size()
-                    );
+            );
             if (sabCompare != 0) {return sabCompare;}
 
 

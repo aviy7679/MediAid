@@ -75,6 +75,25 @@ public class SecurityConstants {
     public static final long CORS_MAX_AGE = 3600L;
     // סיבה: שעה אחת = זמן מספיק לשמירת preflight מבלי לפגוע באבטחה
 
+    /** רשימת Origins מותרים ל-CORS */
+    public static final String[] CORS_ALLOWED_ORIGINS = {
+            "http://localhost:5173",
+            "http://localhost:3000"
+    };
+    // סיבה: כתובות הפיתוח הנפוצות לפרונט-אנד (Vite ו-React)
+
+    /** רשימת Methods מותרים ל-CORS */
+    public static final String[] CORS_ALLOWED_METHODS = {
+            "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
+    };
+    // סיבה: כל ה-HTTP methods הנחוצים לREST API
+
+    /** רשימת Headers מותרים ל-CORS */
+    public static final String[] CORS_ALLOWED_HEADERS = {
+            "Authorization", "Content-Type", "X-Requested-With"
+    };
+    // סיבה: Headers הבסיסיים הנחוצים לפעולת האפליקציה
+
     // =============== הגדרות Rate Limiting ===============
 
     /** מספר מקסימלי של בקשות לדקה למשתמש */
@@ -130,4 +149,19 @@ public class SecurityConstants {
     /** מספר תווים לא מוסתרים בסוף מחרוזת */
     public static final int UNMASK_SUFFIX_LENGTH = 3;
     // סיבה: מספיק כדי לזהות אבל לא לחשוף
+
+    // =============== הגדרות Endpoints מותרים ללא אימות ===============
+
+    /** רשימת endpoints שמותרים ללא אימות */
+    public static final String[] PUBLIC_ENDPOINTS = {
+            "api/user/logIn",
+            "/api/user/create-account",
+            "/error",
+            "/api/auth/**",
+            "/api/public/**",
+            "/api/admin/**",
+            "/api/medications/search",
+            "/api/diseases/search"
+    };
+    // סיבה: endpoints שצריכים להיות פתוחים לגישה ללא אימות
 }

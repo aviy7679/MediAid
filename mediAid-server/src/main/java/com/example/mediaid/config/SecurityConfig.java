@@ -1,6 +1,7 @@
 package com.example.mediaid.config;
 
 import com.example.mediaid.security.jwt.JwtFilter;
+import com.example.mediaid.constants.SecurityConstants;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,18 +31,18 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         // BCrypt אלגוריתם לגיבוב סיסמאות עם salt
-        // strength=12 אומר שהאלגוריתם יעבור 2^12 איטרציות לחיזוק הגיבוב נגד מתקפות brute force
-        return new BCryptPasswordEncoder(12);
+        // strength מהקבועים אומר שהאלגוריתם יעבור 2^12 איטרציות לחיזוק הגיבוב נגד מתקפות brute force
+        return new BCryptPasswordEncoder(SecurityConstants.BCRYPT_STRENGTH);
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:5173","http://localhost:3000"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
+        configuration.setAllowedOrigins(Arrays.asList(SecurityConstants.CORS_ALLOWED_ORIGINS));
+        configuration.setAllowedMethods(Arrays.asList(SecurityConstants.CORS_ALLOWED_METHODS));
+        configuration.setAllowedHeaders(Arrays.asList(SecurityConstants.CORS_ALLOWED_HEADERS));
         configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L);
+        configuration.setMaxAge(SecurityConstants.CORS_MAX_AGE);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
@@ -53,11 +54,7 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("api/user/logIn", "/api/user/create-account", "/error").permitAll()
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/public/**").permitAll()
-                        .requestMatchers("/api/admin/**").permitAll()
-                        .requestMatchers("/api/medications/search", "/api/diseases/search").permitAll()
+                        .requestMatchers(SecurityConstants.PUBLIC_ENDPOINTS).permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

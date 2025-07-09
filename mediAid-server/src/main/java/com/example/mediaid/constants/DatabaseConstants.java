@@ -103,4 +103,73 @@ public class DatabaseConstants {
     /** רמת ביטחון מינימלית במצב Demo */
     public static final double DEMO_MIN_CONFIDENCE = 0.3;
     // סיבה: סף נמוך מספיק שיאפשר תוצאות, אבל לא יכלול רעש רב
+
+    // =============== נתיבי קבצים של UMLS ===============
+
+    /** נתיב לקובץ MRCONSO של UMLS */
+    public static final String MRCONSO_FILE_PATH = "D:\\MediAid\\umls-2024AB-full\\2024AB-full\\2024AB\\META\\MRCONSO.RRF";
+    // סיבה: נתיב קבוע לקובץ המונחים הראשי של UMLS
+
+    /** נתיב לקובץ MRSTY של UMLS */
+    public static final String MRSTY_FILE_PATH = "D:\\MediAid\\umls-2024AB-full\\2024AB-full\\2024AB\\META\\MRSTY.RRF";
+    // סיבה: נתיב קבוע לקובץ הסוגים הסמנטיים של UMLS
+
+    /** נתיב לקובץ config.properties */
+    public static final String CONFIG_FILE_PATH = "D:\\MediAid\\mediAid-server\\src\\main\\resources\\config.properties";
+    // סיבה: נתיב קבוע לקובץ ההגדרות של האפליקציה
+
+    // =============== קבועי UMLS Processors ===============
+
+    /** סוגים סמנטיים למחלות ב-UMLS */
+    public static final String[] DISEASE_SEMANTIC_TYPES = {
+            "T046", // Disease or Syndrome
+            "T047", // Disease or Finding
+            "T191"  // Neoplastic Process
+    };
+    // סיבה: הסוגים הסמנטיים של UMLS שמזהים מחלות
+
+    /** סוגים סמנטיים לתרופות ב-UMLS */
+    public static final String[] MEDICATION_SEMANTIC_TYPES = {
+            "T121", // Pharmacologic Substance
+            "T200", // Clinical Drug
+            "T195", // Antibiotic
+            "T125"  // Hormone
+    };
+    // סיבה: הסוגים הסמנטיים של UMLS שמזהים תרופות
+
+    /** סוגים סמנטיים לסימפטומים ב-UMLS */
+    public static final String[] SYMPTOM_SEMANTIC_TYPES = {
+            "T184"  // Sign or Symptom
+    };
+    // סיבה: הסוג הסמנטי של UMLS שמזהה סימפטומים
+
+    /** מקורות מידע מועדפים למחלות */
+    public static final String[] DISEASE_PREFERRED_SOURCES = {
+            "SNOMEDCT_US", // SNOMED CT
+            "MSH",        // Medical Subject Headings
+            "ICD10CM",    // ICD-10 Clinical Modification
+            "LNC",        // Logical Observation Identifiers Names and Codes
+            "MEDDRA"      // Medical Dictionary for Regulatory Activities
+    };
+    // סיבה: מקורות המידע המהימנים ביותר למחלות ב-UMLS
+
+    /** מקורות מידע מועדפים לתרופות */
+    public static final String[] MEDICATION_PREFERRED_SOURCES = {
+            "RXNORM",     // RxNorm
+            "SNOMEDCT_US", // SNOMED CT
+            "MSH",        // Medical Subject Headings
+            "ATC",        // Anatomical Therapeutic Chemical
+            "MEDDRA",     // Medical Dictionary for Regulatory Activities
+            "NDFRT"       // National Drug File - Reference Terminology
+    };
+    // סיבה: מקורות המידע המהימנים ביותר לתרופות ב-UMLS
+
+    /** מקורות מידע מועדפים לסימפטומים */
+    public static final String[] SYMPTOM_PREFERRED_SOURCES = {
+            "SNOMEDCT_US", // SNOMED CT
+            "MSH",        // Medical Subject Headings
+            "MEDDRA",     // Medical Dictionary for Regulatory Activities
+            "ICD10CM"     // ICD-10 Clinical Modification
+    };
+    // סיבה: מקורות המידע המהימנים ביותר לסימפטומים ב-UMLS
 }
