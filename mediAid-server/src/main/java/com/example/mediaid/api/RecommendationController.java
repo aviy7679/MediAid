@@ -1,6 +1,5 @@
 package com.example.mediaid.api;
 
-import com.example.mediaid.bl.emergency.BasicTreatmentRecommendationEngine;
 import com.example.mediaid.bl.emergency.MedicalGraphAnalyticsService;
 import com.example.mediaid.bl.emergency.SymptomAnalysisService;
 import com.example.mediaid.bl.emergency.TreatmentRecommendationEngine;
@@ -33,8 +32,8 @@ public class RecommendationController {
     @Autowired
     private SymptomAnalysisService symptomAnalysisService;
 
-    @Autowired
-    private BasicTreatmentRecommendationEngine basicTreatmentEngine;
+//    @Autowired
+//    private BasicTreatmentRecommendationEngine basicTreatmentEngine;
 
     @Autowired
     private TreatmentRecommendationEngine treatmentEngine;
@@ -108,8 +107,7 @@ public class RecommendationController {
             TreatmentPlan treatmentPlan;
             String analysisType;
 
-            if (useAdvancedEngine && forceAdvanced) {
-                logger.info("Using ADVANCED Graph-Based Analysis Engine");
+            logger.info("Using ADVANCED Graph-Based Analysis Engine");
                 analysisType = "advanced_graph_thinking";
 
                 long startTime = System.currentTimeMillis();
@@ -125,22 +123,6 @@ public class RecommendationController {
                 treatmentPlan.getAdditionalInfo().put("analysisTimeMs", analysisTime);
                 treatmentPlan.getAdditionalInfo().put("engineType", "advanced_graph_thinking");
 
-            } else {
-                // שימוש במנוע המקורי
-                logger.info("Using Original Analysis Engine");
-                analysisType = "basic_pathfinding";
-
-                try {
-                    treatmentPlan = basicTreatmentEngine.analyzeSituation(userId, allExtractedSymptoms);
-                    if (treatmentPlan.getAdditionalInfo() == null) {
-                        treatmentPlan.setAdditionalInfo(new HashMap<>());
-                    }
-                    treatmentPlan.getAdditionalInfo().put("engineType", "basic_pathfinding");
-                } catch (Exception e) {
-                    logger.error("Error in original analysis: {}", e.getMessage());
-                    treatmentPlan = createBasicTreatmentPlan(allExtractedSymptoms);
-                }
-            }
 
             // שלב 3: בניית תשובה מקיפה
             Map<String, Object> response = buildComprehensiveResponse(
@@ -183,27 +165,6 @@ public class RecommendationController {
             logger.error("Error getting user medical context", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("Error getting medical context: " + e.getMessage()));
-        }
-    }
-
-    /**
-     * בדיקת חיבור לשרת Python
-     */
-    @GetMapping("/python-health")
-    public ResponseEntity<?> checkPythonHealth() {
-        try {
-            boolean isHealthy = symptomAnalysisService.checkPythonServerHealth();
-
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "pythonServerHealthy", isHealthy,
-                    "message", isHealthy ? "Python server is responsive" : "Python server is not responding"
-            ));
-
-        } catch (Exception e) {
-            logger.error("Error checking Python server health", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(createErrorResponse("Error checking Python server: " + e.getMessage()));
         }
     }
 
@@ -365,92 +326,6 @@ public class RecommendationController {
             logger.error("Error in dedicated graph analysis", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("Error in graph analysis: " + e.getMessage()));
-        }
-    }
-
-    /**
-     * API להשוואה בין המנועים
-     */
-    @PostMapping("/compare-engines")
-    public ResponseEntity<?> compareAnalysisEngines(
-            @RequestParam(value = "text", required = false) String text,
-            @RequestParam(value = "image", required = false) MultipartFile imageFile,
-            HttpServletRequest httpRequest) {
-
-        try {
-            UUID userId = extractUserIdFromRequest(httpRequest);
-            if (userId == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(createErrorResponse("Invalid or missing authorization token"));
-            }
-
-            logger.info("Comparing analysis engines for user: {}", userId);
-
-            // חילוץ סימפטומים
-            Set<ExtractedSymptom> symptoms = extractSymptoms(text, imageFile);
-            if (symptoms.isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body(createErrorResponse("No symptoms found for comparison"));
-            }
-
-            Map<String, Object> comparison = new HashMap<>();
-
-            // ניתוח עם המנוע המקורי
-            long startTime1 = System.currentTimeMillis();
-            TreatmentPlan basicPlan = basicTreatmentEngine.analyzeSituation(userId, symptoms);
-            long basicTime = System.currentTimeMillis() - startTime1;
-
-            // ניתוח עם המנוע המתקדם
-            long startTime2 = System.currentTimeMillis();
-            TreatmentPlan advancedPlan = treatmentEngine.analyzeSituation(userId, symptoms);
-            long advancedTime = System.currentTimeMillis() - startTime2;
-
-            // בניית השוואה
-            comparison.put("basicAnalysis", Map.of(
-                    "urgencyLevel", basicPlan.getUrgencyLevel(),
-                    "connectionsFound", basicPlan.getFoundConnections().size(),
-                    "immediateActions", basicPlan.getImmediateActions().size(),
-                    "recommendedTests", basicPlan.getRecommendedTests().size(),
-                    "analysisTimeMs", basicTime,
-                    "mainConcern", basicPlan.getMainConcern()
-            ));
-
-            comparison.put("advancedAnalysis", Map.of(
-                    "urgencyLevel", advancedPlan.getUrgencyLevel(),
-                    "connectionsFound", advancedPlan.getFoundConnections().size(),
-                    "immediateActions", advancedPlan.getImmediateActions().size(),
-                    "recommendedTests", advancedPlan.getRecommendedTests().size(),
-                    "analysisTimeMs", advancedTime,
-                    "mainConcern", advancedPlan.getMainConcern(),
-                    "additionalInsights", advancedPlan.getAdditionalInfo()
-            ));
-
-            comparison.put("performance", Map.of(
-                    "basicTimeMs", basicTime,
-                    "advancedTimeMs", advancedTime,
-                    "timeRatio", (double) advancedTime / basicTime,
-                    "advancedSlower", advancedTime > basicTime
-            ));
-
-            comparison.put("insightsDiff", Map.of(
-                    "connectionsImprovement", advancedPlan.getFoundConnections().size() - basicPlan.getFoundConnections().size(),
-                    "urgencyDifference", !basicPlan.getUrgencyLevel().equals(advancedPlan.getUrgencyLevel()),
-                    "moreDetailedReasoning", advancedPlan.getReasoning().length() > basicPlan.getReasoning().length()
-            ));
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("comparison", comparison);
-            response.put("symptomsAnalyzed", symptoms.size());
-            response.put("comparisonTimestamp", System.currentTimeMillis());
-
-            logger.info("⚖️ Engine comparison completed. Basic: {}ms, Advanced: {}ms", basicTime, advancedTime);
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            logger.error("❌ Error in engine comparison", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(createErrorResponse("Error in comparison: " + e.getMessage()));
         }
     }
 

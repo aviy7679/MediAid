@@ -19,9 +19,7 @@ public class EntityTypes {
     public static final String BIOLOGICAL_FUNCTION = "BiologicalFunction";
     public static final String ANATOMICAL_STRUCTURE = "AnatomicalStructure";
 
-    // יישויות נוספות
     public static final String LABORATORY_TEST = "LaboratoryTest";
-    public static final String DIAGNOSTIC_PROCEDURE = "DiagnosticProcedure";
 
     // מקורות נתונים מועדפים - לסינון
     public static final Set<String> PREFERRED_SOURCES = new HashSet<>(Arrays.asList(
@@ -36,9 +34,6 @@ public class EntityTypes {
             "CSP",          // פתולוגיה
             "MEDLINEPLUS",  // מידע על בריאות למטופלים
             "MTH",           // מטא-תזאורוס
-            "SNOMEDCT_US",  // SNOMED CT US Edition
-            "RXNORM",       // RxNorm
-            "MTHSPL",       // Metathesaurus Structured Product Labels
             "NCI",          // National Cancer Institute
             "LNC",          // LOINC
             "NCBI",         // National Center for Biotechnology Information
@@ -57,12 +52,7 @@ public class EntityTypes {
             Map.entry("T019", DISEASE),           // Congenital Abnormality
             Map.entry("T046", DISEASE),           // Pathologic Function
             Map.entry("T184", SYMPTOM),           // Sign or Symptom
-            Map.entry("T121", BIOLOGICAL_FUNCTION), // Pharmacologic Substance
-            Map.entry("T116", ANATOMICAL_STRUCTURE), // Amino Acid, Peptide, or Protein
-            Map.entry("T195", ANATOMICAL_STRUCTURE), // Anatomical Structure
-            Map.entry("T123", BIOLOGICAL_FUNCTION), // Biologically Active Substance
             Map.entry("T061", PROCEDURE),         // Therapeutic or Preventive Procedure
-            Map.entry("T060", DIAGNOSTIC_PROCEDURE), // Diagnostic Procedure
             Map.entry("T034", LABORATORY_TEST),   // Laboratory or Test Result
             Map.entry("T109", MEDICATION),        // Organic Chemical
             Map.entry("T197", MEDICATION),        // Inorganic Chemical

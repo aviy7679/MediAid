@@ -22,12 +22,12 @@ public abstract class GenericUmlsProcessor<T extends BaseUmlsEntity> {
     private static final Logger logger = LoggerFactory.getLogger(GenericUmlsProcessor.class);
 
     @PersistenceContext
-    protected EntityManager entityManager;  //עבודה מול מסד נתונים
+    protected EntityManager entityManager;  //אוביקט עבודה מול מסד נתונים
 
     @Autowired
-    protected PlatformTransactionManager transactionManager; //מנהל הטרנזקציה
+    protected PlatformTransactionManager transactionManager; //מנהל הטרנזקציה - האפשרות להרצת טרנזקציות
 
-    protected TransactionTemplate transactionTemplate; //עטיפה לקוד בתוך טרנזקציה
+    protected TransactionTemplate transactionTemplate; //עטיפה לכתיבת הקוד בתוך טרנזקציה
     protected final JpaRepository<T, Long> repository;
     protected final Set<String> semanticTypes;
     protected final List<String> preferredSources;
@@ -86,7 +86,7 @@ public abstract class GenericUmlsProcessor<T extends BaseUmlsEntity> {
         //עיבוד כל אצווה בטרנזקציה נפרדת
         for (List<Map.Entry<String, String>> batch : batches) {
             final List<Map.Entry<String, String>> batchToProcess = batch;
-
+            //צריך לקבל אובייקט TransactionCallback שמממש doInTransaction
             Integer batchResult = transactionTemplate.execute(new TransactionCallback<Integer>() {
                 public Integer doInTransaction(TransactionStatus status) {
                     int localSkipped = 0;

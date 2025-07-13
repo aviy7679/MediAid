@@ -50,6 +50,8 @@ public class UmlsTermHelper {
                 }
             }
         }
+        logger.info("Finished reading MRSTY: {} valid CUIs loaded, {} lines skipped (from total {}).",
+                validLines, skippedLines, lineNumber);
         return resultCuis;
 
     }

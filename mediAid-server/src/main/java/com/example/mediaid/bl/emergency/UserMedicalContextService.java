@@ -60,9 +60,6 @@ public class UserMedicalContextService {
             context.setRiskFactors(loadComprehensiveRiskFactors(userId));
             logger.debug("Loaded {} risk factors", context.getRiskFactors().size());
 
-            // טעינת אלרגיות (כרגע ריק)
-            context.setAllergies(new ArrayList<>());
-
             // מידע בסיסי
             context.setBasicInfo(buildBasicInfo(user));
 

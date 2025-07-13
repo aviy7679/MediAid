@@ -22,15 +22,12 @@ public class RelationshipTypes {
     public static final String CAUSES_SIDE_EFFECT = "CAUSES_SIDE_EFFECT"; // תרופה → סימפטום
     public static final String MAY_PREVENT = "MAY_PREVENT";           // תרופה → מחלה
     public static final String COMPLICATION_OF = "COMPLICATION_OF";   // מחלה → מחלה
-    public static final String AGGRAVATES = "AGGRAVATES";             // מחלה/סימפטום → מחלה
     public static final String RISK_FACTOR_FOR = "RISK_FACTOR_FOR";   // מצב → מחלה
     public static final String INCREASES_RISK_OF = "INCREASES_RISK_OF"; // מצב → מחלה
     public static final String DIAGNOSED_BY = "DIAGNOSED_BY";         // מחלה → בדיקה
     public static final String DIAGNOSES = "DIAGNOSES";               // בדיקה → מחלה
-    public static final String PRECEDES = "PRECEDES";                 // מחלה/סימפטום → מחלה/סימפטום
     public static final String LOCATED_IN = "LOCATED_IN";             // מחלה/סימפטום → איבר
-    public static final String INHIBITS = "INHIBITS";                 // תרופה → פונקציה ביולוגית
-    public static final String STIMULATES = "STIMULATES";             // תרופה → פונקציה ביולוגית
+
 
     public static final String CAUSED_BY = "CAUSED_BY";
     public static final String CAUSES = "CAUSES";
@@ -38,7 +35,7 @@ public class RelationshipTypes {
     public static final String ACTIVE_INGREDIENT_OF = "ACTIVE_INGREDIENT_OF";
     public static final String REQUIRES_TEST = "REQUIRES_TEST";
 
-    // מיפוי מקשרי UMLS לקשרים שלנו - הגרסה המלאה והמתוקנת
+    // מיפוי מקשרי UMLS לקשרים שלנו
     public static final Map<String, String> UMLS_TO_NEO4J_RELATIONSHIPS = new HashMap<>();
     static {
         // 1. טיפולים
@@ -174,67 +171,4 @@ public class RelationshipTypes {
         return Math.min(0.99, baseWeight);
     }
 
-    /**
-     * בדיקה אם הקשר מתאים לטיפוסי הצמתים - הגרסה המתוקנת
-     */
-    public static boolean isValidRelationshipForNodeTypes(
-            Set<String> diseaseCuis, Set<String> medicationCuis, Set<String> symptomCuis,
-            Set<String> riskFactorCuis, Set<String> procedureCuis, Set<String> anatomicalCuis,
-            Set<String> labTestCuis, Set<String> biologicalFunctionCuis,
-            String cui1, String cui2, String relType) {
-
-        // בדיקת null safety
-        if (relType == null || cui1 == null || cui2 == null ||
-                diseaseCuis == null || medicationCuis == null || symptomCuis == null ||
-                riskFactorCuis == null || procedureCuis == null || anatomicalCuis == null ||
-                labTestCuis == null || biologicalFunctionCuis == null) {
-            return false;
-        }
-
-        return switch (relType) {
-            case INDICATES, HAS_SYMPTOM -> // סימפטום ↔ מחלה
-                    (symptomCuis.contains(cui1) && diseaseCuis.contains(cui2)) ||
-                            (diseaseCuis.contains(cui1) && symptomCuis.contains(cui2));
-
-            case TREATS, TREATED_BY -> // תרופה ↔ מחלה
-                    (medicationCuis.contains(cui1) && diseaseCuis.contains(cui2)) ||
-                            (diseaseCuis.contains(cui1) && medicationCuis.contains(cui2));
-
-            case CONTRAINDICATED_FOR -> // תרופה ← מחלה/מצב
-                    medicationCuis.contains(cui1) &&
-                            (diseaseCuis.contains(cui2) || riskFactorCuis.contains(cui2));
-
-            case INTERACTS_WITH -> // תרופה ↔ תרופה
-                    medicationCuis.contains(cui1) && medicationCuis.contains(cui2);
-
-            case SIDE_EFFECT_OF, CAUSES_SIDE_EFFECT -> // סימפטום ↔ תרופה
-                    (symptomCuis.contains(cui1) && medicationCuis.contains(cui2)) ||
-                            (medicationCuis.contains(cui1) && symptomCuis.contains(cui2));
-
-            case MAY_PREVENT -> // תרופה → מחלה
-                    medicationCuis.contains(cui1) && diseaseCuis.contains(cui2);
-
-            case RISK_FACTOR_FOR, INCREASES_RISK_OF -> // מצב → מחלה
-                    (riskFactorCuis.contains(cui1) || diseaseCuis.contains(cui1)) &&
-                            diseaseCuis.contains(cui2);
-
-            case LOCATED_IN -> // מחלה/סימפטום → איבר
-                    (diseaseCuis.contains(cui1) || symptomCuis.contains(cui1)) &&
-                            anatomicalCuis.contains(cui2);
-
-            case DIAGNOSED_BY, DIAGNOSES -> // מחלה ↔ בדיקה
-                    (diseaseCuis.contains(cui1) && labTestCuis.contains(cui2)) ||
-                            (labTestCuis.contains(cui1) && diseaseCuis.contains(cui2));
-
-            case CAUSED_BY, CAUSES -> // סיבתיות רפואית
-                    (diseaseCuis.contains(cui1) && diseaseCuis.contains(cui2)) ||
-                            (symptomCuis.contains(cui1) && diseaseCuis.contains(cui2)) ||
-                            (diseaseCuis.contains(cui1) && symptomCuis.contains(cui2));
-
-            case HAS_ACTIVE_INGREDIENT, ACTIVE_INGREDIENT_OF -> // תרופה ↔ חומר פעיל
-                    medicationCuis.contains(cui1) && medicationCuis.contains(cui2);
-
-            default -> false;
-        };
-    }
 }

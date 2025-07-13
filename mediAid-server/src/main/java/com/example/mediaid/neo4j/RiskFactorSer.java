@@ -96,141 +96,6 @@ public class RiskFactorSer {
         this.neo4jDriver = neo4jDriver;
     }
 
-    /**
-     * יצירה או עדכון של פרמטר סיכון
-     */
-    public long createOrUpdateRiskFactor(String type, double value) {
-        logger.debug("Creating/updating risk factor: {} with value: {}", type, value);
-
-        int retryCount = 0;
-        while (retryCount < DatabaseConstants.MAX_RETRIES) {
-            try (Session session = neo4jDriver.session()) {
-                return session.writeTransaction(tx -> {
-                    var result = tx.run(
-                            "MERGE (rf:RiskFactor {type: $type}) " +
-                                    "SET rf.value = $value, rf.updated_at = datetime() " +
-                                    "RETURN id(rf) as nodeId",
-                            Values.parameters("type", type, "value", value)
-                    );
-
-                    if (result.hasNext()) {
-                        long nodeId = result.next().get("nodeId").asLong();
-                        logger.debug("Risk factor {} updated with ID: {}", type, nodeId);
-                        return nodeId;
-                    }
-
-                    return -1L;
-                });
-            } catch (Exception e) {
-                retryCount++;
-                if (retryCount < DatabaseConstants.MAX_RETRIES) {
-                    logger.warn("Retry {} for risk factor creation: {}", retryCount, e.getMessage());
-                    try {
-                        Thread.sleep(DatabaseConstants.RETRY_DELAY_MS);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                } else {
-                    logger.error("Error creating/updating risk factor {} after {} retries: {}",
-                            type, DatabaseConstants.MAX_RETRIES, e.getMessage());
-                    return -1L;
-                }
-            }
-        }
-        return -1L;
-    }
-
-    /**
-     * עדכון קשרים והמשקלים המושפעים מגורם סיכון
-     */
-    public void updateRiskFactorRelationships(String type, double value) {
-        logger.debug("Updating relationships for risk factor: {} with value: {}", type, value);
-
-        if (!RISK_FACTOR_CONFIGS.containsKey(type)) {
-            logger.warn("Risk factor type not configured: {}", type);
-            return;
-        }
-
-        RiskFactorConfig config = RISK_FACTOR_CONFIGS.get(type);
-
-        // בדיקה אם הערך בטווח
-        if (value < config.minValue || value > config.maxValue) {
-            logger.warn("Value {} out of range for {}: expected {}-{}",
-                    value, type, config.minValue, config.maxValue);
-            return;
-        }
-
-        // חישוב משקל הסיכון
-        double factorWeight = calculateWeightForValue(config, value);
-        logger.debug("Calculated factor weight: {} for value: {}", factorWeight, value);
-
-        int retryCount = 0;
-        while (retryCount < DatabaseConstants.MAX_RETRIES) {
-            try (Session session = neo4jDriver.session()) {
-                // עדכון קשרים למחלות מושפעות
-                for (Map.Entry<String, Double> entry : config.diseaseCuiToWeight.entrySet()) {
-                    String diseaseCui = entry.getKey();
-                    double diseaseSpecificWeight = entry.getValue() * factorWeight;
-
-                    session.writeTransaction(tx -> {
-                        // מחיקת קשרים קיימים
-                        tx.run(
-                                "MATCH (rf:RiskFactor {type: $type})-[r:INCREASES_RISK_OF]->(d {cui: $cui}) " +
-                                        "DELETE r",
-                                Values.parameters("type", type, "cui", diseaseCui)
-                        );
-
-                        // יצירת קשר חדש עם משקל מעודכן
-                        var result = tx.run(
-                                "MATCH (rf:RiskFactor {type: $type}) " +
-                                        "MATCH (d {cui: $cui}) " +
-                                        "CREATE (rf)-[r:INCREASES_RISK_OF {" +
-                                        "weight: $weight, " +
-                                        "risk_level: $riskLevel, " +
-                                        "source: 'user_profile', " +
-                                        "created_at: datetime()}]->(d) " +
-                                        "RETURN count(r) as created",
-                                Values.parameters(
-                                        "type", type,
-                                        "cui", diseaseCui,
-                                        "weight", Math.min(0.99, diseaseSpecificWeight),
-                                        "riskLevel", categorizeRiskLevel(diseaseSpecificWeight)
-                                )
-                        );
-
-                        if (result.hasNext()) {
-                            long created = result.next().get("created").asLong();
-                            if (created > 0) {
-                                logger.debug("Created risk relationship: {} -> {} (weight: {})",
-                                        type, diseaseCui, diseaseSpecificWeight);
-                            }
-                        }
-
-                        return null;
-                    });
-                }
-
-                logger.info("Updated risk factor relationships for {} with value {}", type, value);
-                return; // Success, exit retry loop
-
-            } catch (Exception e) {
-                retryCount++;
-                if (retryCount < DatabaseConstants.MAX_RETRIES) {
-                    logger.warn("Retry {} for risk factor relationships update: {}", retryCount, e.getMessage());
-                    try {
-                        Thread.sleep(DatabaseConstants.RETRY_DELAY_MS);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                } else {
-                    logger.error("Error updating relationships for risk factor {} after {} retries: {}",
-                            type, DatabaseConstants.MAX_RETRIES, e.getMessage());
-                }
-            }
-        }
-    }
 
     /**
      * קבלת סטטיסטיקות על גורמי הסיכון
@@ -282,35 +147,6 @@ public class RiskFactorSer {
     }
 
     /**
-     * חישוב משקל הסיכון לפי הערך הנוכחי
-     */
-    private double calculateWeightForValue(RiskFactorConfig config, double value) {
-        double closestThreshold = 0;
-        double thresholdWeight = 1.0;
-
-        for (Map.Entry<String, Double> threshold : config.valueThresholds.entrySet()) {
-            double thresholdValue = Double.parseDouble(threshold.getKey());
-            if (value >= thresholdValue &&
-                    (closestThreshold == 0 || thresholdValue > closestThreshold)) {
-                closestThreshold = thresholdValue;
-                thresholdWeight = threshold.getValue();
-            }
-        }
-
-        return thresholdWeight;
-    }
-
-    /**
-     * קטגוריזציה של רמת סיכון
-     */
-    private String categorizeRiskLevel(double weight) {
-        if (weight < 1.2) return "low";
-        if (weight < 1.6) return "medium";
-        if (weight < 2.0) return "high";
-        return "very_high";
-    }
-
-    /**
      * מחלקה פנימית להגדרת קונפיגורציה של גורם סיכון
      */
     private static class RiskFactorConfig {
@@ -324,7 +160,6 @@ public class RiskFactorSer {
                 double maxValue,
                 Map<String, Double> diseaseCuiToWeight,
                 Map<String, Double> valueThresholds) {
-
             this.minValue = minValue;
             this.maxValue = maxValue;
             this.diseaseCuiToWeight = diseaseCuiToWeight;

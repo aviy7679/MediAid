@@ -13,7 +13,6 @@ public class UserMedicalContext {
     private List<UserMedicalEntity> currentMedications;
     private List<UserMedicalEntity> activeDiseases;
     private List<UserMedicalEntity> riskFactors;
-    private List<UserMedicalEntity> allergies;
     private Map<String, Object> basicInfo; // גיל, מין, BMI וכו'
     private Double overallRiskScore;
     private String riskLevel;

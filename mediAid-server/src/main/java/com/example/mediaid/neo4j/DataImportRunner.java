@@ -1,7 +1,6 @@
 package com.example.mediaid.neo4j;
 
 import com.example.mediaid.bl.DemoMode;
-import com.example.mediaid.bl.emergency.RiskFactorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,8 +21,7 @@ public class DataImportRunner {
 
     private final UmlsEntityImporter entityImporter;
     private final UmlsRelationshipImporter relationshipImporter;
-    private final RiskFactorSer riskFactorSer; // שונה מ-riskFactorService
-    private final RiskFactorService riskFactorService; // שירות PostgreSQL
+    private final RiskFactorSer riskFactorSer;
     private final Environment environment;
 
     @Autowired
@@ -31,13 +29,11 @@ public class DataImportRunner {
             UmlsEntityImporter entityImporter,
             UmlsRelationshipImporter relationshipImporter,
             RiskFactorSer riskFactorSer,
-            RiskFactorService riskFactorService,
             Environment environment) {
 
         this.entityImporter = entityImporter;
         this.relationshipImporter = relationshipImporter;
         this.riskFactorSer = riskFactorSer;
-        this.riskFactorService = riskFactorService;
         this.environment = environment;
     }
 
@@ -55,8 +51,6 @@ public class DataImportRunner {
         boolean importRelationships = Boolean.parseBoolean(
                 environment.getProperty("mediaid.data.import.relationships", "false"));
 
-        boolean initializeRiskFactors = Boolean.parseBoolean(
-                environment.getProperty("mediaid.data.initialize.risk-factors", "true"));
 
         if (importEnabled) {
             try {
@@ -106,14 +100,9 @@ public class DataImportRunner {
                     logger.info("Relationship import disabled");
                 }
 
-                // שלב 3: אתחול גורמי סיכון מקיפים
-                if (initializeRiskFactors) {
-                    logger.info("Starting comprehensive risk factors initialization");
-                    initializeComprehensiveRiskFactors();
-                }
 
                 logger.info("=== Data import completed successfully ===");
-                printFinalSummaryWithRiskFactors();
+                printFinalSummary();
 
             } catch (Exception e) {
                 logger.error("Critical error in data import: {}", e.getMessage(), e);
@@ -126,49 +115,11 @@ public class DataImportRunner {
         }
     }
 
-    /**
-     * אתחול מקיף של גורמי סיכון במערכת
-     */
-    private void initializeComprehensiveRiskFactors() {
-        try {
-            logger.info("Creating comprehensive risk factors in Neo4j");
-
-            // גורמי סיכון דינמיים עיקריים
-            createRiskFactor("AGE", 45, "Age-related health risks");
-            createRiskFactor("BMI", 25, "Body Mass Index health indicator");
-            createRiskFactor("BLOOD_PRESSURE_SYSTOLIC", 120, "Systolic blood pressure reading");
-            createRiskFactor("BLOOD_GLUCOSE", 100, "Blood glucose level indicator");
-            createRiskFactor("SMOKING_SCORE", 0, "Smoking habit severity score");
-
-            // גורמי סיכון נוספים למצב מתקדם
-            createRiskFactor("CHOLESTEROL_TOTAL", 200, "Total cholesterol level");
-            createRiskFactor("HEART_RATE_RESTING", 70, "Resting heart rate");
-            createRiskFactor("STRESS_LEVEL_SCORE", 3, "Psychological stress level");
-
-            logger.info("Comprehensive risk factors initialization completed successfully");
-
-        } catch (Exception e) {
-            logger.error("Error in comprehensive risk factors initialization: {}", e.getMessage(), e);
-        }
-    }
-
-    /**
-     * יצירת גורם סיכון בודד עם קשרים
-     */
-    private void createRiskFactor(String type, double value, String description) {
-        try {
-            long nodeId = riskFactorSer.createOrUpdateRiskFactor(type, value);
-            riskFactorSer.updateRiskFactorRelationships(type, value);
-            logger.debug("Created {} risk factor with ID: {} ({})", type, nodeId, description);
-        } catch (Exception e) {
-            logger.warn("Failed to create risk factor {}: {}", type, e.getMessage());
-        }
-    }
 
     /**
      * הצגת סיכום מערכת מפורט
      */
-    private void printFinalSummaryWithRiskFactors() {
+    private void printFinalSummary() {
         try {
             logger.info("\n=== Comprehensive System Status Summary ===");
 
@@ -206,28 +157,5 @@ public class DataImportRunner {
             logger.error("Error generating comprehensive system summary: {}", e.getMessage(), e);
         }
     }
-
-
-    /**
-     * הפעלה ידנית של תהליך הייבוא המקיף
-     */
-    public void manualComprehensiveDataImport() {
-        logger.info("Starting manual comprehensive import process");
-
-        try {
-            entityImporter.importAllEntitiesFromDB();
-
-            String mrrelPath = environment.getProperty("mediaid.umls.mrrel.path");
-            if (mrrelPath != null && !mrrelPath.isEmpty()) {
-                relationshipImporter.importRelationships(mrrelPath);
-            }
-
-            initializeComprehensiveRiskFactors();
-            logger.info("Manual comprehensive import completed successfully");
-        } catch (Exception e) {
-            logger.error("Error in manual comprehensive import: {}", e.getMessage(), e);
-        }
-    }
-
 
 }

@@ -25,13 +25,7 @@ public class SymptomAnalysisService {
     @Value("${python.server.url:http://localhost:5000}")
     private String pythonServerUrl;
 
-    @Value("${python.server.timeout:" + PYTHON_SERVER_TIMEOUT + "}")
-    private int timeoutMs;
-
-    //תקשורת REST עם שרתים אחרים
     private final RestTemplate restTemplate;
-
-    //המרות JAVA ופורמטים כמו JSON
     private final ObjectMapper objectMapper;
 
     public SymptomAnalysisService() {
@@ -39,8 +33,8 @@ public class SymptomAnalysisService {
         this.objectMapper = new ObjectMapper();
     }
 
-    //חילוץ מטקסט
     public List<ExtractedSymptom> extractSymptomsFromText(String text){
+        logger.info("Extracting symptoms from text: {}", text.substring(0, Math.min(50, text.length())) + "...");
         try{
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("text", text);
@@ -48,15 +42,18 @@ public class SymptomAnalysisService {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
-            //אובייקט לבקשת HTTP
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
 
-            //שליחת הבקשה
             String url = pythonServerUrl + "/text/analyze";
-            ResponseEntity<String> response  = restTemplate.postForEntity(url, request, String.class);
+            logger.info("Sending request to: {}", url);
+
+            ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
+
+            logger.info("Received response with status: {}", response.getStatusCode());
+            logger.debug("Response body: {}", response.getBody());
 
             if(response.getStatusCode() == HttpStatus.OK){
-                return parseSymptoms(response.getBody(),true);
+                return parseSymptoms(response.getBody(), true);
             }else {
                 logger.error("Python server returned error status: {}", response.getStatusCode());
                 return new ArrayList<>();
@@ -68,21 +65,19 @@ public class SymptomAnalysisService {
             logger.error("Python server not accessible for text analysis: {}", e.getMessage());
             return new ArrayList<>();
         }catch(Exception e){
-            logger.error("Unexpected error occurred while extracting symptoms from text analysis: {}", e.getMessage());
+            logger.error("Unexpected error occurred while extracting symptoms from text analysis: {}", e.getMessage(), e);
             return new ArrayList<>();
         }
     }
 
-    //חילוץ מתמונה
     public List<ExtractedSymptom> extractedSymptomsFromImage(byte[] image){
         logger.info("Extracting symptoms from image of size {}", image.length);
         try{
-            //המרה לBase64
             String base64Image = Base64.getEncoder().encodeToString(image);
 
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("image", base64Image);
-            requestBody.put("min_confidence", MIN_SYMPTOM_CONFIDENCE); //סף דיפולטיבי
+            requestBody.put("min_confidence", MIN_SYMPTOM_CONFIDENCE);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -90,46 +85,26 @@ public class SymptomAnalysisService {
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
 
             String url = pythonServerUrl + "/image/analyze";
-            ResponseEntity<String> response  = restTemplate.postForEntity(url, request, String.class);
+            ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
 
             if(response.getStatusCode() == HttpStatus.OK){
-                return parseSymptoms(response.getBody(),false);
+                return parseSymptoms(response.getBody(), false);
             }else {
                 logger.error("Python server returned error status: {}", response.getStatusCode());
                 return new ArrayList<>();
             }
         } catch (Exception e) {
-            logger.error("Error in image extraction: {}", e.getMessage());
+            logger.error("Error in image extraction: {}", e.getMessage(), e);
             return new ArrayList<>();
         }
     }
 
-    //בדיקת תקינות השרת - פייתון
-    public boolean checkPythonServerHealth() {
-        try {
-            String url = pythonServerUrl + "/health";
-            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
 
-            if (response.getStatusCode() == HttpStatus.OK) {
-                JsonNode healthResponse = objectMapper.readTree(response.getBody());
-                boolean ready = healthResponse.path("ready").asBoolean(false);
-                logger.info("Python server health check: ready={}", ready);
-                return ready;
-            }
-
-            return false;
-
-        } catch (Exception e) {
-            logger.error("Python server health check failed: {}", e.getMessage());
-            return false;
-        }
-    }
-
-    //תרגום התשובה לאובייקט
-    private List<ExtractedSymptom> parseSymptoms (String jsonResponse, boolean isText){
+    private List<ExtractedSymptom> parseSymptoms(String jsonResponse, boolean isText){
         List<ExtractedSymptom> symptoms = new ArrayList<>();
 
         try{
+            logger.debug("Parsing symptoms from JSON: {}", jsonResponse);
             JsonNode root = objectMapper.readTree(jsonResponse);
 
             if(!root.path("success").asBoolean()){
@@ -139,24 +114,44 @@ public class SymptomAnalysisService {
             }
 
             JsonNode symptomsArray = root.path("symptoms");
+            logger.info("Found {} symptoms in response", symptomsArray.size());
 
             for (JsonNode symptomNode : symptomsArray) {
                 ExtractedSymptom symptom = new ExtractedSymptom();
 
+                // Basic fields that are the same for both text and image
                 symptom.setCui(symptomNode.path("cui").asText());
                 symptom.setName(symptomNode.path("name").asText());
                 symptom.setDetectedName(symptomNode.path("detected_name").asText());
 
-                //הגדרות ספציפיות לטקסט
                 if(isText){
-                    symptom.setConfidence(symptomNode.path("accuracy").asDouble());
-                    symptom.setProbability(symptomNode.path("context_similarity").asDouble());
-                    symptom.setStartPosition(symptomNode.path("start_position").asInt());
-                    symptom.setEndPosition(symptomNode.path("end_position").asInt());
-                    symptom.setStatus(symptomNode.path("status").asText("Unknown"));
+                    // ✅ FIXED: Updated field names to match Python server response
+                    symptom.setConfidence(symptomNode.path("confidence").asDouble()); // Was: "accuracy"
+
+                    // Set probability to confidence if context_similarity doesn't exist
+                    double probability = symptomNode.path("context_similarity").asDouble(
+                            symptomNode.path("confidence").asDouble()
+                    );
+                    symptom.setProbability(probability);
+
+                    // ✅ FIXED: Updated field names
+                    symptom.setStartPosition(symptomNode.path("start").asInt()); // Was: "start_position"
+                    symptom.setEndPosition(symptomNode.path("end").asInt());     // Was: "end_position"
+
+                    // Use match_type as status if available, otherwise default
+                    String status = symptomNode.path("match_type").asText(
+                            symptomNode.path("status").asText("Present")
+                    );
+                    symptom.setStatus(status);
+
                     symptom.setSource("text");
-                    symptom.setAnalyzerType("MedCAT");
+
+                    // Use the actual analyzer type from response if available
+                    String analyzerType = symptomNode.path("source").asText("keyword_analyzer");
+                    symptom.setAnalyzerType(analyzerType);
+
                 }else{
+                    // Image analysis fields (these seem correct already)
                     symptom.setConfidence(symptomNode.path("confidence").asDouble());
                     symptom.setProbability(symptomNode.path("probability").asDouble());
                     symptom.setStartPosition(null);
@@ -166,18 +161,29 @@ public class SymptomAnalysisService {
                     symptom.setAnalyzerType("BiomedCLIP");
                 }
 
-                // סינון סימפטומים עם רמת ביטחון נמוכה מדי
+                // ✅ IMPROVED: Better logging for debugging
+                logger.debug("Parsed symptom: {} (CUI: {}, Confidence: {:.2f})",
+                        symptom.getName(), symptom.getCui(), symptom.getConfidence());
+
+                // Filter symptoms with low confidence
                 if (symptom.getConfidence() >= MIN_SYMPTOM_CONFIDENCE) {
                     symptoms.add(symptom);
+                    logger.debug("Added symptom: {} (confidence {:.2f} >= threshold {:.2f})",
+                            symptom.getName(), symptom.getConfidence(), MIN_SYMPTOM_CONFIDENCE);
+                } else {
+                    logger.debug("Filtered out symptom: {} (confidence {:.2f} < threshold {:.2f})",
+                            symptom.getName(), symptom.getConfidence(), MIN_SYMPTOM_CONFIDENCE);
                 }
             }
 
             String sourceType = isText ? "text" : "image";
-            logger.info("Parsed {} symptoms from {} (after filtering)", symptoms.size(), sourceType);
+            logger.info("Successfully parsed {} symptoms from {} (after filtering with threshold {:.2f})",
+                    symptoms.size(), sourceType, MIN_SYMPTOM_CONFIDENCE);
 
         } catch (Exception e) {
             String sourceType = isText ? "text" : "image";
-            logger.error("Failed to parse {} symptoms: {}",sourceType,e.getMessage(), e);
+            logger.error("Failed to parse {} symptoms: {}", sourceType, e.getMessage(), e);
+            logger.error("JSON response was: {}", jsonResponse);
         }
 
         return symptoms;
