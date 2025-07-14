@@ -1,10 +1,6 @@
-"""
-Text Analysis System - Keywords with verified CUI normalization
-English-only medical symptom detection system
-"""
 import re
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict
 import time
 from config import (
     TEXT_CONFIDENCE_HIGH, TEXT_CONFIDENCE_MEDIUM, TEXT_CONFIDENCE_LOW,
@@ -15,14 +11,12 @@ from config import (
     CATEGORY_CARDIOVASCULAR, CATEGORY_RESPIRATORY, CATEGORY_NEUROLOGICAL,
     CATEGORY_GASTROINTESTINAL, CATEGORY_MUSCULOSKELETAL, CATEGORY_DERMATOLOGICAL,
     CATEGORY_PSYCHOLOGICAL, CATEGORY_SYSTEMIC, CATEGORY_VISUAL, CATEGORY_SLEEP,
-    CATEGORY_PAIN, CATEGORY_GENERAL,
-    DEBUG_SEPARATOR_LONG
+    CATEGORY_PAIN, CATEGORY_GENERAL
 )
 
 logger = logging.getLogger(__name__)
 
 class KeywordTextAnalyzer:
-    """Text analyzer based on keywords with verified CUI normalization"""
 
     def __init__(self):
         self.cui_database = {}
@@ -31,8 +25,8 @@ class KeywordTextAnalyzer:
 
         self.load_symptom_database()
 
+    #טעינת הרשימה
     def load_symptom_database(self):
-        """Load symptom database with verified CUI codes"""
 
         logger.info("Loading keyword database with verified CUI codes...")
 
@@ -279,13 +273,10 @@ class KeywordTextAnalyzer:
         self.is_loaded = True
         logger.info(f"Loaded keyword database with {len(self.cui_database)} verified CUI codes and {len(self.keyword_index)} keywords")
 
+    #בניית כעין אינדקס
     def _build_keyword_index(self):
-        """Build fast search index"""
-
         self.keyword_index = {}
-
         for cui, data in self.cui_database.items():
-            # Primary keywords
             for keyword in data.get("keywords", []):
                 keyword_clean = keyword.lower().strip()
                 if keyword_clean not in self.keyword_index:
@@ -298,31 +289,31 @@ class KeywordTextAnalyzer:
                 self.keyword_index[primary_name] = []
             self.keyword_index[primary_name].append(cui)
 
+    #ניתוח הטקסט
     def analyze_text(self, text: str) -> List[Dict]:
-        """Analyze text and return detected symptoms"""
 
         if not self.is_loaded:
             return []
 
         start_time = time.time()
-        text_lower = text.lower()
+        text=text.lower()
 
         found_symptoms = []
 
-        # Stage 1: Direct keyword matches
-        direct_matches = self._find_direct_matches(text_lower)
+        # חיפוש ישיר של מילות מפתח
+        direct_matches = self._find_direct_matches(text)
         found_symptoms.extend(direct_matches)
 
-        # Stage 2: Complex phrase matches
-        phrase_matches = self._find_phrase_matches(text_lower)
+        # ביטויים מורכבים
+        phrase_matches = self._find_phrase_matches(text)
         found_symptoms.extend(phrase_matches)
 
-        # Stage 3: Context-based matches
-        context_matches = self._find_context_matches(text_lower)
+        # לפי הקשר
+        context_matches = self._find_context_matches(text)
         found_symptoms.extend(context_matches)
 
-        # Clean and enhance results
-        final_symptoms = self._clean_and_enhance(found_symptoms, text)
+        # ניקוי לסינון כפילויות
+        final_symptoms = self._clean_and_enhance(found_symptoms)
 
         processing_time = time.time() - start_time
 
@@ -330,20 +321,18 @@ class KeywordTextAnalyzer:
 
         return final_symptoms
 
+    #מציאת ביטויים ישירים
     def _find_direct_matches(self, text: str) -> List[Dict]:
-        """Find direct keyword matches"""
 
         matches = []
 
         for keyword, cuis in self.keyword_index.items():
             if keyword in text:
-                # Check word boundaries
                 pattern = rf'\b{re.escape(keyword)}\b'
                 for match in re.finditer(pattern, text, re.IGNORECASE):
                     for cui in cuis:
                         symptom_data = self.cui_database[cui]
-
-                        # Check for negation
+                        # בדיקת שלילה
                         if self._check_negation(text, match.start(), match.end()):
                             continue
 
@@ -362,12 +351,10 @@ class KeywordTextAnalyzer:
 
         return matches
 
+    # זיהוי צירופים
     def _find_phrase_matches(self, text: str) -> List[Dict]:
-        """Find complex phrase matches like 'severe headache'"""
-
         matches = []
 
-        # Intensity modifiers
         intensifiers = {
             "severe": INTENSITY_FACTOR_MEDIUM, "intense": INTENSITY_FACTOR_MEDIUM,
             "extreme": INTENSITY_FACTOR_HIGH, "terrible": INTENSITY_FACTOR_MEDIUM,
@@ -382,7 +369,6 @@ class KeywordTextAnalyzer:
             current_word = words[i].strip('.,!?').lower()
             next_word = words[i + 1].strip('.,!?').lower()
 
-            # If first word is intensifier and second is symptom
             if current_word in intensifiers and next_word in self.keyword_index:
                 intensity_factor = intensifiers[current_word]
 
@@ -401,7 +387,7 @@ class KeywordTextAnalyzer:
                             "detected_name": phrase,
                             "start": phrase_start,
                             "end": phrase_start + len(phrase),
-                            "confidence": round(adjusted_confidence, 2),
+                            "confidence": round(adjusted_confidence, 2),  #2 ספרות אחרי הנקודה
                             "category": symptom_data["category"],
                             "match_type": "phrase",
                             "intensity": current_word,
@@ -411,6 +397,7 @@ class KeywordTextAnalyzer:
 
         return matches
 
+    #לפי הקשר
     def _find_context_matches(self, text: str) -> List[Dict]:
         """Find context-based matches - body parts + pain"""
 
@@ -431,13 +418,11 @@ class KeywordTextAnalyzer:
 
         for body_part, related_cui in body_parts_mapping.items():
             if body_part in text:
-                # Look for pain indicators nearby
                 for pain_word in pain_indicators:
                     if pain_word in text:
                         body_pos = text.find(body_part)
                         pain_pos = text.find(pain_word)
 
-                        # Check proximity (within WORD_BOUNDARY_CONTEXT characters)
                         if abs(body_pos - pain_pos) <= WORD_BOUNDARY_CONTEXT:
                             symptom_data = self.cui_database[related_cui]
 
@@ -460,6 +445,7 @@ class KeywordTextAnalyzer:
 
         return matches
 
+    #בדיקת שלילה
     def _check_negation(self, text: str, start: int, end: int) -> bool:
         """Check for negation before symptom"""
 
@@ -468,15 +454,13 @@ class KeywordTextAnalyzer:
             "denies", "negative", "lacks", "missing"
         ]
 
-        # Check NEGATION_CHECK_DISTANCE characters before the symptom
         before_text = text[max(0, start - NEGATION_CHECK_DISTANCE):start].lower()
 
         return any(neg_word in before_text for neg_word in negation_words)
 
-    def _clean_and_enhance(self, symptoms: List[Dict], original_text: str) -> List[Dict]:
-        """Clean duplicates and enhance information"""
+    #ניקוי כפילויות ומיון
+    def _clean_and_enhance(self, symptoms: List[Dict]) -> List[Dict]:
 
-        # Remove duplicates by CUI
         unique_symptoms = {}
 
         for symptom in symptoms:
@@ -485,15 +469,12 @@ class KeywordTextAnalyzer:
             if cui not in unique_symptoms:
                 unique_symptoms[cui] = symptom
             else:
-                # Keep higher confidence
                 if symptom["confidence"] > unique_symptoms[cui]["confidence"]:
                     unique_symptoms[cui] = symptom
 
-        # Sort by confidence
         sorted_symptoms = sorted(unique_symptoms.values(),
                                key=lambda x: x["confidence"], reverse=True)
 
-        # Enhance with additional info
         for symptom in sorted_symptoms:
             cui = symptom["cui"]
             cui_data = self.cui_database[cui]
@@ -508,106 +489,3 @@ class KeywordTextAnalyzer:
             })
 
         return sorted_symptoms
-
-    def get_cui_info(self, cui: str) -> Optional[Dict]:
-        """Get information about specific CUI"""
-        return self.cui_database.get(cui)
-
-    def search_symptoms(self, query: str) -> List[Dict]:
-        """Search symptoms by name"""
-
-        query_lower = query.lower()
-        results = []
-
-        for cui, data in self.cui_database.items():
-            # Search in name
-            if query_lower in data["name"].lower():
-                results.append({"cui": cui, "match_in": "name", **data})
-
-            # Search in keywords
-            elif any(query_lower in keyword.lower() for keyword in data.get("keywords", [])):
-                results.append({"cui": cui, "match_in": "keywords", **data})
-
-        return results
-
-    def get_statistics(self) -> Dict:
-        """Get system statistics"""
-
-        if not self.is_loaded:
-            return {"error": "System not loaded"}
-
-        categories = {}
-        total_keywords = 0
-
-        for cui, data in self.cui_database.items():
-            category = data.get("category", "unknown")
-            categories[category] = categories.get(category, 0) + 1
-            total_keywords += len(data.get("keywords", []))
-
-        return {
-            "total_cuis": len(self.cui_database),
-            "total_keywords": total_keywords,
-            "categories": categories,
-            "avg_keywords_per_cui": round(total_keywords / len(self.cui_database), 1),
-            "memory_efficient": True,
-            "load_time": "instant",
-            "verified_cui_codes": True
-        }
-
-# =============================================================================
-# DEMO
-# =============================================================================
-
-def demo_keyword_analyzer():
-    """Demo of keyword analysis system"""
-
-    print("🔍 Keyword Text Analysis System Demo")
-    print(DEBUG_SEPARATOR_LONG)
-
-    analyzer = KeywordTextAnalyzer()
-
-    test_texts = [
-        "Patient complains of severe headache and high fever",
-        "Experiencing chest pain with shortness of breath",
-        "I have nausea and muscle pain after exercise",
-        "Feeling dizzy and very tired lately with palpitations",
-        "No headache today, feeling much better"
-    ]
-
-    print("🧪 Analysis Tests:")
-
-    total_time = 0
-
-    for i, text in enumerate(test_texts, 1):
-        print(f"\n{i}. Analyzing: '{text}'")
-
-        start_time = time.time()
-        symptoms = analyzer.analyze_text(text)
-        analysis_time = time.time() - start_time
-        total_time += analysis_time
-
-        print(f"   ⏱️ Time: {analysis_time:.3f}s")
-        print(f"   🎯 Found {len(symptoms)} symptoms:")
-
-        for symptom in symptoms:
-            confidence = symptom["confidence"]
-            match_type = symptom["match_type"]
-
-            print(f"      - {symptom['name']}")
-            print(f"        CUI: {symptom['cui']}, Confidence: {confidence:.2f}, Type: {match_type}")
-
-    print(f"\n📊 Statistics:")
-    stats = analyzer.get_statistics()
-
-    print(f"   • Total CUI codes: {stats['total_cuis']}")
-    print(f"   • Total keywords: {stats['total_keywords']}")
-    print(f"   • Average keywords per CUI: {stats['avg_keywords_per_cui']}")
-    print(f"   • Total processing time: {total_time:.3f}s")
-    print(f"   • Verified CUI codes: {stats['verified_cui_codes']}")
-
-    print(f"\n Categories:")
-    for category, count in stats["categories"].items():
-        print(f"   • {category}: {count}")
-
-if __name__ == "__main__":
-    demo_keyword_analyzer()

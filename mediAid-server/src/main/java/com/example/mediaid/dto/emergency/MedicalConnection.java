@@ -15,8 +15,9 @@ public class MedicalConnection {
         MEDICATION_INTERACTION("Medication Interaction"),
         COMPLICATION("Complication"),
         RISK_FACTOR("Risk Factor"),
-        CONTRAINDICATION("Contraindication");
-        
+        CONTRAINDICATION("Contraindication"),
+        REQUIRES_TEST("Requires Test");
+
         private final String description;
         
         ConnectionType(String description) {

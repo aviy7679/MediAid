@@ -22,8 +22,6 @@ public class TreatmentRecommendationEngine {
     @Autowired
     private UserMedicalContextService medicalContextService;
 
-    @Autowired
-    private RiskFactorService riskFactorService;
 
     public TreatmentPlan analyzeSituation(UUID userId, Set<ExtractedSymptom> symptoms) {
         logger.info("Starting medical analysis for user {} with {} symptoms", userId, symptoms.size());
@@ -77,7 +75,7 @@ public class TreatmentRecommendationEngine {
             }
 
 
-            // שלב 6: קשרים בסיסיים - זה חייב לעבוד
+            // שלב 6: קשרים בסיסיים
             List<MedicalConnection> basicConnections = new ArrayList<>();
             try {
                 basicConnections = findBasicConnections(userContext, new ArrayList<>(symptoms));
@@ -87,7 +85,7 @@ public class TreatmentRecommendationEngine {
                 // זה באמת בעייתי, אבל נמשיך
             }
 
-            // שלב 7: קביעת רמת הדחיפות - עם התיקונים
+            // שלב 7: קביעת רמת הדחיפות
             TreatmentPlan.UrgencyLevel urgencyLevel;
             try {
                 urgencyLevel = calculateUrgencyLevel(symptoms, detectedPathways, riskPropagation, medicalCommunities, userContext);
@@ -179,9 +177,7 @@ public class TreatmentRecommendationEngine {
     }
 
     private String determineMainDiagnosis(List<MedicalAnalysisService.MedicalPathway> pathways,
-                                          List<MedicalAnalysisService.MedicalCommunity> communities,
-                                          Set<ExtractedSymptom> symptoms) {
-
+                                          List<MedicalAnalysisService.MedicalCommunity> communities) {
         // 1. בדיקת מסלולים מסוכנים
         if (pathways != null && !pathways.isEmpty()) {
             Optional<MedicalAnalysisService.MedicalPathway> mostRiskyPathway = pathways.stream()
@@ -242,7 +238,6 @@ public class TreatmentRecommendationEngine {
         return "🚨 Emergency-level medical situation identified through advanced graph analysis. This analysis combines traditional medical knowledge with advanced graph-based pattern recognition for comprehensive assessment. Recommendations are based on your complete medical profile and interconnection patterns.";
     }
 
-    // תיקון buildTreatmentPlan לוודא שיש דאגה עיקרית
     private TreatmentPlan buildTreatmentPlan(
             TreatmentPlan.UrgencyLevel urgencyLevel,
             UserMedicalContext userContext,
@@ -257,7 +252,7 @@ public class TreatmentRecommendationEngine {
 
         // דאגה עיקרית - עם fallback
         try {
-            String mainConcern = determineMainDiagnosis(pathways, communities, symptoms);
+            String mainConcern = determineMainDiagnosis(pathways, communities);
             if (mainConcern == null || mainConcern.trim().isEmpty()) {
                 mainConcern = generateFallbackMainConcern(symptoms, userContext, basicConnections);
             }
@@ -285,10 +280,9 @@ public class TreatmentRecommendationEngine {
 
         // בדיקות מומלצות בהתבסס על Graph Analytics
         try {
-            plan.setRecommendedTests(generateRecommendedTests(symptoms, pathways, communities, urgencyLevel));
-        } catch (Exception e) {
+            plan.setRecommendedTests(generateRecommendedTests(symptoms, pathways, communities, urgencyLevel, userContext));        } catch (Exception e) {
             logger.error("Error generating recommended tests: {}", e.getMessage());
-            plan.setRecommendedTests(generateBasicTests(symptoms, urgencyLevel));
+            plan.setRecommendedTests(generateBasicTests(symptoms, urgencyLevel, userContext));
         }
 
         // ביקורי רופא מותאמים
@@ -347,8 +341,7 @@ public class TreatmentRecommendationEngine {
         return actions;
     }
 
-    private List<MedicalTest> generateBasicTests(Set<ExtractedSymptom> symptoms, TreatmentPlan.UrgencyLevel urgencyLevel) {
-        List<MedicalTest> tests = new ArrayList<>();
+    private List<MedicalTest> generateBasicTests(Set<ExtractedSymptom> symptoms, TreatmentPlan.UrgencyLevel urgencyLevel, UserMedicalContext userContext) {        List<MedicalTest> tests = new ArrayList<>();
 
         MedicalTest basicTest = new MedicalTest();
         basicTest.setType(MedicalTest.TestType.BLOOD_TEST);
@@ -518,35 +511,46 @@ public class TreatmentRecommendationEngine {
     private List<MedicalTest> generateRecommendedTests(Set<ExtractedSymptom> symptoms,
                                                        List<MedicalAnalysisService.MedicalPathway> pathways,
                                                        List<MedicalAnalysisService.MedicalCommunity> communities,
-                                                       TreatmentPlan.UrgencyLevel urgencyLevel) {
+                                                       TreatmentPlan.UrgencyLevel urgencyLevel,
+                                                       UserMedicalContext userContext) {
         Set<MedicalTest.TestType> recommendedTests = new HashSet<>();
 
-        // בדיקות על בסיס סימפטומים
-        for (ExtractedSymptom symptom : symptoms) {
-            String symptomName = symptom.getName().toLowerCase();
-            if (symptomName.contains("chest pain")) {
-                recommendedTests.add(MedicalTest.TestType.ECG);
-                recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
-            } else if (symptomName.contains("heart")) {
-                recommendedTests.add(MedicalTest.TestType.ECG);
-            } else if (symptomName.contains("fever")) {
-                recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
-            } else if (symptomName.contains("headache")) {
-                recommendedTests.add(MedicalTest.TestType.BLOOD_PRESSURE);
-            } else if (symptomName.contains("pain")) {
-                recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
-            }
-        }
+        try {
+            // חיפוש בדיקות בגרף לסימפטומים
+            List<MedicalConnection> testConnections = analysisService.findRecommendedTests(new ArrayList<>(symptoms));
 
-        // בדיקות נוספות בהתבסס על מסלולים מתקדמים
-        pathways.stream()
-                .filter(p -> p.getRiskScore() > MIN_PATHWAY_CONFIDENCE)
-                .forEach(pathway -> {
-                    // לוגיקה להמלצת בדיקות בהתבסס על סוג המסלול
-                    if (pathway.getNodes().stream().anyMatch(n -> "Disease".equals(n.getType()))) {
-                        recommendedTests.add(MedicalTest.TestType.BLOOD_TEST);
+            for (MedicalConnection connection : testConnections) {
+                if (connection.getConfidence() > 0.3) { // סף ביטחון
+                    MedicalTest.TestType testType = mapTestNameToType(connection.getToEntity());
+                    if (testType != null) {
+                        recommendedTests.add(testType);
                     }
-                });
+                }
+            }
+
+            // חיפוש בדיקות למחלות פעילות
+            if (userContext != null && userContext.getActiveDiseases() != null) {
+                List<MedicalConnection> diseaseTests = analysisService.findTestsForDiseases(userContext.getActiveDiseases());
+
+                for (MedicalConnection connection : diseaseTests) {
+                    if (connection.getConfidence() > 0.3) {
+                        MedicalTest.TestType testType = mapTestNameToType(connection.getToEntity());
+                        if (testType != null) {
+                            recommendedTests.add(testType);
+                        }
+                    }
+                }
+            }
+
+            logger.info("Found {} graph-based test recommendations", recommendedTests.size());
+
+        } catch (Exception e) {
+            logger.warn("Graph-based test search failed, using fallback: {}", e.getMessage());
+            return generateBasicTests(symptoms, urgencyLevel, userContext);        }
+
+        // אם לא נמצאו בדיקות בגרף, fallback בסיסי
+        if (recommendedTests.isEmpty()) {
+            return generateBasicTests(symptoms, urgencyLevel, userContext);        }
 
         String urgency = switch (urgencyLevel) {
             case EMERGENCY -> "ASAP";
@@ -560,11 +564,30 @@ public class TreatmentRecommendationEngine {
                     MedicalTest test = new MedicalTest();
                     test.setType(testType);
                     test.setDescription(testType.getDescription());
-                    test.setReason("Recommended based on advanced graph analysis and symptom patterns");
+                    test.setReason("Recommended based on medical graph analysis");
                     test.setUrgency(urgency);
                     return test;
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * מיפוי שם בדיקה לסוג
+     */
+    private MedicalTest.TestType mapTestNameToType(String testName) {
+        String name = testName.toLowerCase();
+
+        if (name.contains("blood") || name.contains("cbc")) return MedicalTest.TestType.BLOOD_TEST;
+        if (name.contains("ecg") || name.contains("ekg")) return MedicalTest.TestType.ECG;
+        if (name.contains("x-ray")) return MedicalTest.TestType.XRAY;
+        if (name.contains("ultrasound")) return MedicalTest.TestType.ULTRASOUND;
+        if (name.contains("ct")) return MedicalTest.TestType.CT_SCAN;
+        if (name.contains("mri")) return MedicalTest.TestType.MRI;
+        if (name.contains("urine")) return MedicalTest.TestType.URINE_TEST;
+        if (name.contains("glucose") || name.contains("sugar")) return MedicalTest.TestType.BLOOD_SUGAR;
+        if (name.contains("pressure")) return MedicalTest.TestType.BLOOD_PRESSURE;
+
+        return MedicalTest.TestType.BLOOD_TEST; // ברירת מחדל
     }
 
     private List<DoctorVisit> generateDoctorVisits(TreatmentPlan.UrgencyLevel urgencyLevel,

@@ -474,8 +474,64 @@ public class MedicalAnalysisService {
                 community.getSize(), community.getDominantType(), community.getCohesionScore());
     }
 
-    private String categorizeInfluence(double centralityScore) {
-        return getInfluenceLevel(centralityScore);
+    /**
+     * חיפוש בדיקות מומלצות לסימפטומים
+     */
+    public List<MedicalConnection> findRecommendedTests(List<ExtractedSymptom> symptoms) {
+        List<MedicalConnection> connections = new ArrayList<>();
+
+        for (ExtractedSymptom symptom : symptoms) {
+            List<Record> records = repository.findTestsForSymptomQuery(symptom.getCui());
+
+            for (Record record : records) {
+                try {
+                    MedicalConnection connection = new MedicalConnection();
+                    connection.setType(MedicalConnection.ConnectionType.REQUIRES_TEST);
+                    connection.setFromEntity(symptom.getName());
+                    connection.setToEntity(record.get("testName").asString());
+                    connection.setFromCui(symptom.getCui());
+                    connection.setToCui(record.get("testCui").asString());
+                    connection.setConfidence(record.get("confidence").asDouble());
+                    connection.setExplanation(String.format("Test %s recommended for symptom %s",
+                            record.get("testName").asString(), symptom.getName()));
+                    connections.add(connection);
+
+                    logger.debug("Found test: {} -> {}", symptom.getName(), record.get("testName").asString());
+                } catch (Exception e) {
+                    logger.warn("Error processing test: {}", e.getMessage());
+                }
+            }
+        }
+        return connections;
+    }
+
+    /**
+     * חיפוש בדיקות מומלצות למחלות
+     */
+    public List<MedicalConnection> findTestsForDiseases(List<UserMedicalEntity> diseases) {
+        List<MedicalConnection> connections = new ArrayList<>();
+
+        for (UserMedicalEntity disease : diseases) {
+            List<Record> records = repository.findTestsForDiseaseQuery(disease.getCui());
+
+            for (Record record : records) {
+                try {
+                    MedicalConnection connection = new MedicalConnection();
+                    connection.setType(MedicalConnection.ConnectionType.REQUIRES_TEST);
+                    connection.setFromEntity(disease.getName());
+                    connection.setToEntity(record.get("testName").asString());
+                    connection.setFromCui(disease.getCui());
+                    connection.setToCui(record.get("testCui").asString());
+                    connection.setConfidence(record.get("confidence").asDouble());
+                    connection.setExplanation(String.format("Test %s recommended for monitoring %s",
+                            record.get("testName").asString(), disease.getName()));
+                    connections.add(connection);
+                } catch (Exception e) {
+                    logger.warn("Error processing disease test: {}", e.getMessage());
+                }
+            }
+        }
+        return connections;
     }
 
     // Data classes

@@ -20,6 +20,7 @@ class ImageAnalyzer:
         if auto_load:
             self.load_model()
 
+    #טעינת המודל
     def load_model(self):
         if self.is_loaded:
             self.logger.info("Model already loaded, skipping...")
@@ -28,8 +29,9 @@ class ImageAnalyzer:
         try:
             start_time = time.time()
             self.logger.info("Loading BiomedCLIP model...")
-
+            #טוען את המודל ואת שלב הקדם-עיבוד
             self.model, self.preprocess = create_model_from_pretrained(BIOMEDCLIP_MODEL_NAME)
+            #טוקניזר - יוצר ייצוגים וקטוריים לטקסט
             self.tokenizer = get_tokenizer(BIOMEDCLIP_MODEL_NAME)
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             self.model.to(self.device).eval()

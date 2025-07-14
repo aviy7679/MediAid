@@ -274,4 +274,44 @@ public class Neo4jMedicalRepository {
             return new ArrayList<>();
         }
     }
+
+    /**
+     * חיפוש בדיקות לסימפטום
+     */
+    public List<Record> findTestsForSymptomQuery(String symptomCui) {
+        try (Session session = neo4jDriver.session()) {
+            String query = """
+            MATCH (s:Symptom {cui: $symptomCui})-[r:REQUIRES_TEST]->(t:LaboratoryTest)
+            RETURN t.name as testName, t.cui as testCui, r.weight as confidence
+            ORDER BY confidence DESC
+            LIMIT 5
+            """;
+
+            return session.readTransaction(tx ->
+                    tx.run(query, Map.of("symptomCui", symptomCui)).list());
+        } catch (Exception e) {
+            logger.error("Error finding tests for symptom: {}", e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * חיפוש בדיקות למחלה
+     */
+    public List<Record> findTestsForDiseaseQuery(String diseaseCui) {
+        try (Session session = neo4jDriver.session()) {
+            String query = """
+            MATCH (d:Disease {cui: $diseaseCui})-[r:REQUIRES_TEST]->(t:LaboratoryTest)
+            RETURN t.name as testName, t.cui as testCui, r.weight as confidence
+            ORDER BY confidence DESC
+            LIMIT 5
+            """;
+
+            return session.readTransaction(tx ->
+                    tx.run(query, Map.of("diseaseCui", diseaseCui)).list());
+        } catch (Exception e) {
+            logger.error("Error finding tests for disease: {}", e.getMessage());
+            return new ArrayList<>();
+        }
+    }
 }

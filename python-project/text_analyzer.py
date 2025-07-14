@@ -44,10 +44,10 @@ class TextAnalyzer:
             self.load_model()
 
     def extract_symptoms(self, text):
-        """חילוץ סימפטומים מטקסט"""
         # וידוא שהמודל נטען
         self._ensure_model_loaded()
 
+        #טקסט ריק או רווחים בלבד
         if not text or not text.strip():
             return []
 
