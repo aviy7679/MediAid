@@ -35,6 +35,8 @@ public class MedicalAnalysisConstants {
     public static final double RISK_DECAY_FACTOR = 0.85;
     // סיבה: כל צעד במסלול מקטין את הסיכון ב-15%, מספיק כדי לתת משקל למרחק
 
+    /** גורם דעיכה לביטחון במסלול */
+    public static final double CONFIDENCE_DECAY_FACTOR = 0.9;
     // סיבה: ביטחון יורד עם המרחק אבל לאט יותר מסיכון
 
     /** משקל מינימלי לגורם סיכון */
