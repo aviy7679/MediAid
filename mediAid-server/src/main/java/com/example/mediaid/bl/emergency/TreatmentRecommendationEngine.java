@@ -98,7 +98,7 @@ public class TreatmentRecommendationEngine {
                 urgencyLevel = TreatmentPlan.UrgencyLevel.MEDIUM;
             }
 
-            // שלב 8: קביעת תוכנית טיפול - עם התיקונים
+            // שלב 8: קביעת תוכנית טיפול
             TreatmentPlan treatmentPlan;
             try {
                 treatmentPlan = buildTreatmentPlan(
@@ -255,7 +255,7 @@ public class TreatmentRecommendationEngine {
         TreatmentPlan plan = new TreatmentPlan();
         plan.setUrgencyLevel(urgencyLevel);
 
-        // דאגה עיקרית - עם fallback חזק
+        // דאגה עיקרית - עם fallback
         try {
             String mainConcern = determineMainDiagnosis(pathways, communities, symptoms);
             if (mainConcern == null || mainConcern.trim().isEmpty()) {

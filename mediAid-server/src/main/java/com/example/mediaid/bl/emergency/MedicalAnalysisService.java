@@ -1,5 +1,6 @@
 package com.example.mediaid.bl.emergency;
 
+import com.example.mediaid.constants.MedicalAnalysisConstants;
 import com.example.mediaid.dto.emergency.ExtractedSymptom;
 import com.example.mediaid.dto.emergency.MedicalConnection;
 import com.example.mediaid.dto.emergency.UserMedicalEntity;
@@ -12,6 +13,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.stream.Collectors;
+
+// ייבוא הקבועים
+import static com.example.mediaid.constants.MedicalAnalysisConstants.*;
 
 /**
  * שירות Analytics לגרף רפואי
@@ -37,7 +41,7 @@ public class MedicalAnalysisService {
             for (Record record : records) {
                 try {
                     MedicalPathway pathway = parsePathwayFromRecord(record, sourceCui, symptom);
-                    if (pathway != null && pathway.getRiskScore() > 0.1) {
+                    if (pathway != null && pathway.getRiskScore() > MIN_PATHWAY_CONFIDENCE) {
                         pathways.add(pathway);
                     }
                 } catch (Exception e) {
@@ -59,7 +63,7 @@ public class MedicalAnalysisService {
         logger.info("Detecting medical communities using Louvain algorithm");
         List<MedicalCommunity> communities = new ArrayList<>();
 
-        // תיקון: וידוא שיש ישויות
+        // וידוא שיש ישויות
         if (userContext == null || userContext.isEmpty()) {
             logger.warn("No user context provided for community detection");
             return communities;
@@ -67,7 +71,7 @@ public class MedicalAnalysisService {
 
         List<String> userCuis = userContext.stream()
                 .map(UserMedicalEntity::getCui)
-                .filter(cui -> cui != null && !cui.trim().isEmpty()) // תיקון: סינון CUIs null
+                .filter(cui -> cui != null && !cui.trim().isEmpty())
                 .collect(Collectors.toList());
 
         if (userCuis.isEmpty()) {
@@ -100,7 +104,7 @@ public class MedicalAnalysisService {
     }
 
     /**
-     * חישוב סיכונים עם הגרף - עם תיקון פונקציות מתמטיות - מהקוד המקורי
+     * חישוב סיכונים עם הגרף
      */
     public RiskPropagationResult calculateRiskPropagation(List<UserMedicalEntity> riskSources, Set<ExtractedSymptom> targetSymptoms, double decayFactor) {
         logger.info("Calculating risk propagation from {} sources to {} targets", riskSources.size(), targetSymptoms.size());
@@ -139,8 +143,8 @@ public class MedicalAnalysisService {
         return result;
     }
 
-     /**
-     * קשר בין תרופות לבין סימפטומים של המשתמש - מהקוד המקורי
+    /**
+     * קשר בין תרופות לבין סימפטומים של המשתמש
      */
     public List<MedicalConnection> findMedicationSideEffects(List<UserMedicalEntity> medications, List<ExtractedSymptom> symptoms) {
         List<MedicalConnection> connections = new ArrayList<>();
@@ -152,7 +156,7 @@ public class MedicalAnalysisService {
                 for (Record record : records) {
                     try {
                         MedicalConnection connection = new MedicalConnection();
-                        connection.setType(MedicalConnection.ConnectionType.SIDE_EFFECT);
+                        connection.setType(MedicalConnection.ConnectionType.valueOf(CONNECTION_SIDE_EFFECT));
                         connection.setFromEntity(record.get("medName").asString());
                         connection.setToEntity(record.get("sympName").asString());
                         connection.setFromCui(medication.getCui());
@@ -173,7 +177,7 @@ public class MedicalAnalysisService {
     }
 
     /**
-     * קשר בין מחלה וסימפטומים - מהקוד המקורי
+     * קשר בין מחלה וסימפטומים
      */
     public List<MedicalConnection> findDiseaseSymptoms(List<UserMedicalEntity> diseases, List<ExtractedSymptom> symptoms) {
         List<MedicalConnection> connections = new ArrayList<>();
@@ -185,7 +189,7 @@ public class MedicalAnalysisService {
                 for (Record record : records) {
                     try {
                         MedicalConnection connection = new MedicalConnection();
-                        connection.setType(MedicalConnection.ConnectionType.DISEASE_SYMPTOM);
+                        connection.setType(MedicalConnection.ConnectionType.valueOf(CONNECTION_DISEASE_SYMPTOM));
                         connection.setFromEntity(record.get("disName").asString());
                         connection.setToEntity(record.get("sympName").asString());
                         connection.setFromCui(disease.getCui());
@@ -208,7 +212,7 @@ public class MedicalAnalysisService {
     }
 
     /**
-     * חיפוש טיפול אפשרי לסימפטום - מהקוד המקורי
+     * חיפוש טיפול אפשרי לסימפטום
      */
     public List<MedicalConnection> findPossibleTreatments(List<ExtractedSymptom> symptoms) {
         List<MedicalConnection> connections = new ArrayList<>();
@@ -220,7 +224,7 @@ public class MedicalAnalysisService {
             for (Record record : records) {
                 try {
                     MedicalConnection connection = new MedicalConnection();
-                    connection.setType(MedicalConnection.ConnectionType.DISEASE_SYMPTOM);
+                    connection.setType(MedicalConnection.ConnectionType.valueOf(CONNECTION_TREATMENT));
                     connection.setFromEntity(symptom.getName());
                     connection.setToEntity(record.get("medName").asString());
                     connection.setFromCui(symptom.getCui());
@@ -239,7 +243,6 @@ public class MedicalAnalysisService {
         return connections;
     }
 
-    // ========== פונקציות פרטיות מהקוד המקורי ==========
 
     private List<MedicalCommunity> detectCommunitiesWithGDS(List<String> userCuis) {
         List<MedicalCommunity> communities = new ArrayList<>();
@@ -249,7 +252,7 @@ public class MedicalAnalysisService {
         for (Record record : records) {
             try {
                 MedicalCommunity community = parseCommunityFromRecord(record);
-                if (community != null && community.getSize() >= 2) {
+                if (community != null && community.getSize() >= MIN_COMMUNITY_SIZE) {
                     communities.add(community);
                 }
             } catch (Exception e) {
@@ -301,7 +304,7 @@ public class MedicalAnalysisService {
     private List<MedicalCommunity> createFallbackCommunity(List<UserMedicalEntity> userContext) {
         List<MedicalCommunity> communities = new ArrayList<>();
 
-        if (userContext.size() >= 2) {
+        if (userContext.size() >= MIN_COMMUNITY_SIZE) {
             MedicalCommunity community = new MedicalCommunity();
             community.setCommunityId(1L);
             community.setSize(userContext.size());
@@ -316,16 +319,15 @@ public class MedicalAnalysisService {
                     }).collect(Collectors.toList());
 
             community.setMembers(members);
-            community.setCohesionScore(0.5);
+            community.setCohesionScore(FALLBACK_COHESION_SCORE);
             community.setDominantType(findDominantType(members));
-            community.setDescription("User medical profile community (fallback)");
+            community.setDescription(FALLBACK_COMMUNITY_DESCRIPTION);
 
             communities.add(community);
         }
 
         return communities;
     }
-
 
     private MedicalPathway parsePathwayFromRecord(Record record, String sourceCui, ExtractedSymptom targetSymptom) {
         try {
@@ -414,7 +416,7 @@ public class MedicalAnalysisService {
             path.setTargetName(target.getName());
             path.setFinalRisk(record.get("finalRisk").asDouble());
             path.setPathLength(pathLength);
-            path.setDecayFactor(Math.pow(0.85, pathLength));
+            path.setDecayFactor(calculateDecayFactor(pathLength));
 
             return path;
         } catch (Exception e) {
@@ -425,33 +427,21 @@ public class MedicalAnalysisService {
 
     private double calculateInitialRisk(UserMedicalEntity entity) {
         return switch (entity.getType()) {
-            case "disease" -> entity.getSeverity() != null ?
-                    switch (entity.getSeverity().toLowerCase()) {
-                        case "severe" -> 0.9;
-                        case "moderate" -> 0.6;
-                        case "mild" -> 0.3;
-                        default -> 0.5;
-                    } : 0.5;
-            case "riskfactor" -> entity.getSeverity() != null && entity.getAdditionalData().containsKey("weight") ?
-                    ((Number) entity.getAdditionalData().get("weight")).doubleValue() : 0.4;
-            default -> 0.3;
+            case ENTITY_TYPE_DISEASE -> entity.getSeverity() != null ?
+                    getRiskBySeverity(entity.getSeverity()) : DEFAULT_DISEASE_RISK;
+            case ENTITY_TYPE_RISK_FACTOR -> entity.getSeverity() != null && entity.getAdditionalData().containsKey("weight") ?
+                    ((Number) entity.getAdditionalData().get("weight")).doubleValue() : DEFAULT_RISK_FACTOR;
+            default -> DEFAULT_ENTITY_RISK;
         };
     }
 
-    // ביטחון יורד עם אורך המסלול אבל עולה עם רמת הסיכון
-    private double calculatePathwayConfidence(double riskScore, int pathLength) {
-        return riskScore * Math.pow(0.9, pathLength - 1);
-    }
-
     private double calculateCohesionScore(MedicalCommunity community) {
-        double baseScore = Math.min(1.0, community.getSize() / 10.0);
-
         Set<String> uniqueTypes = community.getMembers().stream()
                 .map(CommunityMember::getType)
                 .collect(Collectors.toSet());
-        double diversityBonus = uniqueTypes.size() > 1 ? 0.2 : 0.0;
+        boolean hasDiversity = uniqueTypes.size() > 1;
 
-        return Math.min(1.0, baseScore + diversityBonus);
+        return MedicalAnalysisConstants.calculateCohesionScore(community.getSize(), hasDiversity);
     }
 
     private String findDominantType(List<CommunityMember> members) {
@@ -460,13 +450,13 @@ public class MedicalAnalysisService {
                 .entrySet().stream()
                 .max(Map.Entry.comparingByValue())
                 .map(Map.Entry::getKey)
-                .orElse("Mixed");
+                .orElse(FALLBACK_COMMUNITY_TYPE);
     }
 
     private String generatePathwayExplanation(MedicalPathway pathway) {
         StringBuilder explanation = new StringBuilder();
 
-        if (pathway.getNodes().size() >= 2) {
+        if (pathway.getNodes().size() >= MIN_COMMUNITY_SIZE) {
             PathNode first = pathway.getNodes().get(0);
             PathNode last = pathway.getNodes().get(pathway.getNodes().size() - 1);
 
@@ -485,10 +475,7 @@ public class MedicalAnalysisService {
     }
 
     private String categorizeInfluence(double centralityScore) {
-        if (centralityScore > 50) return "Very High";
-        if (centralityScore > 20) return "High";
-        if (centralityScore > 5) return "Medium";
-        return "Low";
+        return getInfluenceLevel(centralityScore);
     }
 
     // Data classes

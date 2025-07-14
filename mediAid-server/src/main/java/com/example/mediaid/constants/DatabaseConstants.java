@@ -37,18 +37,6 @@ public class DatabaseConstants {
     public static final int BATCH_DELAY_MS = 10;
     // סיבה: הפסקה קצרה כדי לא להציף את מסד הנתונים
 
-    /** מספר מקסימלי של חיבורים ל-Neo4j */
-    public static final int NEO4J_MAX_CONNECTIONS = 50;
-    // סיבה: מספר חיבורים סביר לאפליקציה בגודל בינוני
-
-    /** timeout לחיבור Neo4j (מילישניות) */
-    public static final int NEO4J_CONNECTION_TIMEOUT = 30000;
-    // סיבה: 30 שניות מספיקות לחיבור מסד נתונים מרוחק
-
-    /** timeout לשאילתות Neo4j (מילישניות) */
-    public static final int NEO4J_QUERY_TIMEOUT = 60000;
-    // סיבה: שאילתות מורכבות יכולות לקחת זמן, אבל לא יותר מדקה
-
     // =============== הגדרות ניתוח קבצים ===============
 
     /** מספר קווים מקסימלי לניתוח מקדים של קובץ MRREL */
