@@ -139,47 +139,7 @@ public class MedicalAnalysisService {
         return result;
     }
 
-    /**
-     * ניתוח centrality למציאת "hub" רפואיים חשובים - עם תיקון parameters - מהקוד המקורי
-     */
-    public List<MedicalHub> findMedicalHubs(List<UserMedicalEntity> userContext) {
-        List<MedicalHub> hubs = new ArrayList<>();
-
-        // הפכי את רשימת ה־CUIs לרשימת מחרוזות אמיתית (לא מחרוזת אחת עם גרשיים!)
-        List<String> userCuis = userContext.stream()
-                .map(UserMedicalEntity::getCui)
-                .collect(Collectors.toList());
-
-        // בדיקה שהרשימה לא ריקה
-        if (userCuis == null || userCuis.isEmpty()) {
-            logger.warn("No user CUIs provided for centrality analysis");
-            return hubs;
-        }
-
-        try {
-            List<Record> records = repository.findMedicalHubsQuery(userCuis);
-
-            for (Record record : records) {
-                try {
-                    MedicalHub hub = new MedicalHub();
-                    hub.setCui(record.get("cui").asString());
-                    hub.setName(record.get("name").asString());
-                    hub.setCentralityScore(record.get("score").asDouble());
-                    hubs.add(hub);
-                } catch (Exception e) {
-                    logger.error("Error parsing hub: {}", e.getMessage());
-                }
-            }
-        } catch (Exception e) {
-            logger.error("Error in GDS centrality analysis: {}", e.getMessage());
-            // fallback לגישה בסיסית
-            hubs = findHubsBasic(userCuis);
-        }
-
-        return hubs;
-    }
-
-    /**
+     /**
      * קשר בין תרופות לבין סימפטומים של המשתמש - מהקוד המקורי
      */
     public List<MedicalConnection> findMedicationSideEffects(List<UserMedicalEntity> medications, List<ExtractedSymptom> symptoms) {
@@ -366,25 +326,7 @@ public class MedicalAnalysisService {
         return communities;
     }
 
-    private List<MedicalHub> findHubsBasic(List<String> userCuis) {
-        List<MedicalHub> hubs = new ArrayList<>();
 
-        List<Record> records = repository.findHubsBasicQuery(userCuis);
-
-        for (Record record : records) {
-            MedicalHub hub = new MedicalHub();
-            hub.setCui(record.get("cui").asString());
-            hub.setName(record.get("name").asString());
-            hub.setType(record.get("type").asString());
-            hub.setCentralityScore(record.get("score").asDouble());
-            hub.setInfluenceLevel(categorizeInfluence(hub.getCentralityScore()));
-            hubs.add(hub);
-        }
-
-        return hubs;
-    }
-
-    // שאר הפונקציות נשארות זהות מהקוד המקורי...
     private MedicalPathway parsePathwayFromRecord(Record record, String sourceCui, ExtractedSymptom targetSymptom) {
         try {
             List<Object> pathNodes = record.get("pathNodes").asList();

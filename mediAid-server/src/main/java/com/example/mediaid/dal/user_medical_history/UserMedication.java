@@ -2,6 +2,7 @@ package com.example.mediaid.dal.user_medical_history;
 
 import com.example.mediaid.dal.UMLS_terms.Medication;
 import com.example.mediaid.dal.User;
+import com.example.mediaid.security.encryption.EncryptedStringAttributeConverter;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDate;
@@ -18,10 +19,12 @@ public class UserMedication {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Convert(converter = EncryptedStringAttributeConverter.class)
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Convert(converter = EncryptedStringAttributeConverter.class)
     @ManyToOne
     @JoinColumn(name = "medication_id", nullable = false)
     private Medication medication;

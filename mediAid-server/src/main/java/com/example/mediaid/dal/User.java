@@ -1,6 +1,7 @@
 package com.example.mediaid.dal;
 
 import com.example.mediaid.dal.user_medical_history.RiskFactorEnums.*;
+import com.example.mediaid.security.encryption.EncryptedStringAttributeConverter;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -14,15 +15,18 @@ import java.util.UUID;
 @Table(name = "users")
 @Data
 public class User {
+
     @Id
     @GeneratedValue
     @Column(name = "id")
     private UUID userId;
 
-    @Column(unique = true, nullable = false)
+    @Convert(converter = EncryptedStringAttributeConverter.class)
+    @Column(nullable = false)
     private String username;
 
-    @Column(unique = true, nullable = false)
+    @Convert(converter = EncryptedStringAttributeConverter.class)
+    @Column(nullable = false)
     private String email;
 
     @Column(nullable = false)
@@ -33,12 +37,11 @@ public class User {
 
     private String gender;
 
-    // שדות גובה ומשקל
     @Column(name = "height")
-    private Float height; // גובה בסנטימטרים
+    private Float height;
 
     @Column(name = "weight")
-    private Float weight; // משקל בקילוגרמים
+    private Float weight;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "smoking_status")
@@ -78,7 +81,9 @@ public class User {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    // המתודות שלך ללא שינוי
     public double calculateOverallRiskScore() {
+        // הקוד הקיים שלך...
         double totalRisk = 0.0;
         int factorCount = 0;
 
@@ -118,9 +123,6 @@ public class User {
         return factorCount > 0 ? totalRisk / factorCount : 0.0;
     }
 
-    /**
-     * חישוב BMI
-     */
     public Double calculateBMI() {
         if (height != null && weight != null && height > 0 && weight > 0) {
             double heightInMeters = height / 100.0;

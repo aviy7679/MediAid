@@ -1,20 +1,12 @@
 package com.example.mediaid.security.encryption;
 
+import com.example.mediaid.config.ApplicationContextProvider;
 import com.example.mediaid.utils.EncryptionProperties;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
-@Component
 @Converter
 public class EncryptedStringAttributeConverter implements AttributeConverter<String, String> {
-
-    @Autowired
-    private EncryptionService encryptionService;
-
-    @Autowired
-    private EncryptionProperties encryptionProperties;
 
     @Override
     public String convertToDatabaseColumn(String attribute) {
@@ -22,9 +14,16 @@ public class EncryptedStringAttributeConverter implements AttributeConverter<Str
             return attribute;
         }
         try {
-            return encryptionService.encrypt(attribute, encryptionProperties.getKeyAlias(),encryptionProperties.getKeyPassword());
-        }catch (Exception e) {
-            throw new RuntimeException("Error encrypting data",e);
+            EncryptionService encryptionService = ApplicationContextProvider.getBean(EncryptionService.class);
+            EncryptionProperties encryptionProperties = ApplicationContextProvider.getBean(EncryptionProperties.class);
+
+            String result = encryptionService.encrypt(attribute,
+                    encryptionProperties.getKeyAlias(),
+                    encryptionProperties.getKeyPassword());
+            return result;
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Error encrypting data", e);
         }
     }
 
@@ -33,10 +32,17 @@ public class EncryptedStringAttributeConverter implements AttributeConverter<Str
         if (dbData == null || dbData.isEmpty()) {
             return dbData;
         }
-        try{
-            return encryptionService.decrypt(dbData, encryptionProperties.getKeyAlias(),encryptionProperties.getKeyPassword());
-        }catch (Exception e) {
-            throw new RuntimeException("Error decrypting data",e);
+        try {
+            EncryptionService encryptionService = ApplicationContextProvider.getBean(EncryptionService.class);
+            EncryptionProperties encryptionProperties = ApplicationContextProvider.getBean(EncryptionProperties.class);
+
+            String result = encryptionService.decrypt(dbData,
+                    encryptionProperties.getKeyAlias(),
+                    encryptionProperties.getKeyPassword());
+            return result;
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Error decrypting data", e);
         }
     }
 }

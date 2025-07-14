@@ -29,14 +29,17 @@ public class UserService {
         return userRepository.findAll();
     }
 
+    // פונקציה  לחיפוש לפי email מוצפן
     @Transactional(readOnly = true)
     public User findByEmail(String email) {
         System.out.println("Finding user by email: " + email);
-        return userRepository.findByEmail(email);
+        // חיפוש ידני בכל המשתמשים כי השדה מוצפן
+        return userRepository.findAll().stream()
+                .filter(user -> email.equals(user.getEmail()))
+                .findFirst()
+                .orElse(null);
     }
 
-    // Use REQUIRES_NEW to create a new transaction, so if one operation fails,
-    // it doesn't affect others
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Result createUser(User user) {
         // Check if user exists in a separate transaction
@@ -47,7 +50,9 @@ public class UserService {
         try {
             // Hash the password before saving the user
             user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash()));
-            userRepository.save(user);
+            User savedUser = userRepository.save(user);
+
+            System.out.println("User created successfully with ID: " + savedUser.getUserId());
             return Result.SUCCESS;
         } catch (DataIntegrityViolationException e) {
             Throwable cause = e.getRootCause();
@@ -61,12 +66,6 @@ public class UserService {
             e.printStackTrace();
             return Result.ERROR;
         }
-    }
-
-    // Separate method with its own transaction
-    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
-    public boolean emailExists(String email) {
-        return userRepository.findByEmail(email) != null;
     }
 
     @Transactional(readOnly = true)
@@ -84,6 +83,17 @@ public class UserService {
         }
         System.out.println("Wrong password");
         return Result.WRONG_PASSWORD;
+    }
+    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
+    public boolean emailExists(String email) {
+        try {
+            boolean result = userRepository.findAll().stream()
+                    .anyMatch(user -> email.equals(user.getEmail()));
+            return result;
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     @Transactional

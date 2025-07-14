@@ -293,12 +293,6 @@ public class RecommendationController {
             graphAnalysisResults.put("riskPropagation", riskPropagation);
             logger.info("Risk propagation: {:.3f} total risk", riskPropagation.getTotalRiskScore());
 
-            // 4. Medical Hub Analysis (אם מתבקש)
-            if (includeHubs) {
-                var medicalHubs = analysisService.findMedicalHubs(allUserEntities);
-                graphAnalysisResults.put("medicalHubs", medicalHubs);
-                logger.info("Identified {} medical hubs", medicalHubs.size());
-            }
 
             // בניית תשובה מפורטת
             Map<String, Object> response = new HashMap<>();
