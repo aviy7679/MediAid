@@ -11,7 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.util.*;
 
 /**
- * Repository לשאילתות Neo4j בלבד - מהקוד המקורי שלך
+ * Repository לשאילתות Neo4j
  */
 @Repository
 public class Neo4jMedicalRepository {
@@ -22,7 +22,7 @@ public class Neo4jMedicalRepository {
     private Driver neo4jDriver;
 
     /**
-     * מציאת מסלולים רפואיים עד 5 צעדים - מהקוד המקורי
+     * מציאת מסלולים רפואיים עד 5 צעדים
      */
     public List<Record> findMedicalPathwaysQuery(String sourceCui, String targetCui, int maxDepth) {
         try (Session session = neo4jDriver.session()) {
@@ -30,7 +30,7 @@ public class Neo4jMedicalRepository {
                 MATCH (source {cui: $sourceCui})
                 MATCH (target {cui: $targetCui})
                 CALL apoc.path.expandConfig(source, {
-                    relationshipFilter: "TREATS|CAUSES_SIDE_EFFECT|INDICATES|RISK_FACTOR_FOR|INFLUENCES>",
+                    relationshipFilter: "TREATS|CAUSES_SIDE_EFFECT|INDICATES|CAUSES_SYMPTOM|RISK_FACTOR_FOR|INFLUENCES>",
                     labelFilter: "+Disease|+Medication|+Symptom|+RiskFactor",
                     minLevel: 1,
                     maxLevel: $maxDepth,
@@ -39,7 +39,6 @@ public class Neo4jMedicalRepository {
                 }) YIELD path
                 WHERE last(nodes(path)).cui = $targetCui
                 WITH path,
-                     // חישוב מתקן של risk score ללא exp/ln
                      reduce(pathWeight = 0.0, rel in relationships(path) | 
                             pathWeight + rel.weight) / size(relationships(path)) *
                      CASE size(relationships(path))
@@ -81,7 +80,7 @@ public class Neo4jMedicalRepository {
     }
 
     /**
-     * איתור קהילות עם GDS - מהקוד המקורי
+     * איתור קהילות עם GDS
      */
     public List<Record> detectCommunitiesWithGDSQuery(List<String> userCuis) {
         try (Session session = neo4jDriver.session()) {
@@ -137,7 +136,7 @@ public class Neo4jMedicalRepository {
     }
 
     /**
-     * איתור קהילות בסיסי - מהקוד המקורי
+     * איתור קהילות בסיסי
      */
     public List<Record> detectCommunitiesBasicQuery(List<String> userCuis) {
         try (Session session = neo4jDriver.session()) {
@@ -163,16 +162,15 @@ public class Neo4jMedicalRepository {
     }
 
     /**
-     * חישוב סיכונים - מהקוד המקורי
+     * חישוב סיכונים
      */
     public List<Record> findRiskPropagationQuery(String sourceCui, String targetCui, double initialRisk, double decay) {
         try (Session session = neo4jDriver.session()) {
-            // תיקון: שימוש בחישוב decay ללא pow
             String riskPropagationQuery = """
                 MATCH (source {cui: $sourceCui})
                 MATCH (target {cui: $targetCui})
                 CALL apoc.path.expandConfig(source, {
-                    relationshipFilter: "RISK_FACTOR_FOR|CAUSES|INFLUENCES|LEADS_TO>",
+                    relationshipFilter: "RISK_FACTOR_FOR|CAUSES_SYMPTOM|CAUSES_SIDE_EFFECT|LEADS_TO>",
                     maxLevel: 4,
                     limit: 20,
                     endNodes: [target]
@@ -213,7 +211,7 @@ public class Neo4jMedicalRepository {
     }
 
     /**
-     * ניתוח centrality למציאת "hub" רפואיים חשובים - מהקוד המקורי
+     * ניתוח centrality למציאת "hub" רפואיים חשובים
      */
     public List<Record> findMedicalHubsQuery(List<String> userCuis) {
         try (Session session = neo4jDriver.session()) {
@@ -265,7 +263,7 @@ public class Neo4jMedicalRepository {
     }
 
     /**
-     * מציאת Hub-ים בסיסי - מהקוד המקורי
+     * מציאת Hub בסיסי
      */
     public List<Record> findHubsBasicQuery(List<String> userCuis) {
         try (Session session = neo4jDriver.session()) {
@@ -289,7 +287,7 @@ public class Neo4jMedicalRepository {
     }
 
     /**
-     * קשר בין תרופות לבין סימפטומים של המשתמש - מהקוד המקורי
+     * קשר בין תרופות לבין סימפטומים של המשתמש
      */
     public List<Record> findMedicationSideEffectsQuery(String medCui, String sympCui) {
         try (Session session = neo4jDriver.session()) {
@@ -311,7 +309,7 @@ public class Neo4jMedicalRepository {
     }
 
     /**
-     * קשר בין מחלה וסימפטומים - מהקוד המקורי
+     * קשר בין מחלה וסימפטומים
      */
     public List<Record> findDiseaseSymptomsQuery(String disCui, String sympCui) {
         try (Session session = neo4jDriver.session()) {
@@ -332,7 +330,7 @@ public class Neo4jMedicalRepository {
     }
 
     /**
-     * חיפוש טיפול אפשרי לסימפטום - מהקוד המקורי
+     * חיפוש טיפול אפשרי לסימפטום
      */
     public List<Record> findPossibleTreatmentsQuery(String sympCui) {
         try (Session session = neo4jDriver.session()) {

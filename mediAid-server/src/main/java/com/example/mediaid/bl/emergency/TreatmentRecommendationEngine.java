@@ -1,8 +1,6 @@
 package com.example.mediaid.bl.emergency;
 
-import com.example.mediaid.dal.UserRepository;
 import com.example.mediaid.dto.emergency.*;
-import org.neo4j.driver.Driver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,25 +10,20 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.example.mediaid.constants.MedicalAnalysisConstants.*;
-import static com.example.mediaid.constants.ApiConstants.*;
 
 @Service
 public class TreatmentRecommendationEngine {
 
     private static final Logger logger = LoggerFactory.getLogger(TreatmentRecommendationEngine.class);
 
-
     @Autowired
-    private Neo4jPathfindingService pathfindingService;
+    private MedicalAnalysisService analysisService;
 
     @Autowired
     private UserMedicalContextService medicalContextService;
 
     @Autowired
     private RiskFactorService riskFactorService;
-
-    @Autowired
-    private MedicalGraphAnalyticsService graphAnalytics;
 
     public TreatmentPlan analyzeSituation(UUID userId, Set<ExtractedSymptom> symptoms) {
         logger.info("Starting medical analysis for user {} with {} symptoms", userId, symptoms.size());
@@ -44,9 +37,9 @@ public class TreatmentRecommendationEngine {
                     userContext.getRiskFactors().size());
 
             // שלב 2: Community Detection - עם טיפול בשגיאות
-            List<MedicalGraphAnalyticsService.MedicalCommunity> medicalCommunities = new ArrayList<>();
+            List<MedicalAnalysisService.MedicalCommunity> medicalCommunities = new ArrayList<>();
             try {
-                medicalCommunities = graphAnalytics.detectMedicalCommunities(getAllUserEntities(userContext));
+                medicalCommunities = analysisService.detectMedicalCommunities(getAllUserEntities(userContext));
                 logger.debug("Loaded {} medical communities", medicalCommunities.size());
             } catch (Exception e) {
                 logger.warn("Community detection failed: {}", e.getMessage());
@@ -54,12 +47,12 @@ public class TreatmentRecommendationEngine {
             }
 
             // שלב 3: חיפוש קשרים רפואיים - עם טיפול בשגיאות
-            List<MedicalGraphAnalyticsService.MedicalPathway> detectedPathways = new ArrayList<>();
+            List<MedicalAnalysisService.MedicalPathway> detectedPathways = new ArrayList<>();
             try {
                 for (UserMedicalEntity entity : getAllUserEntities(userContext)) {
                     try {
-                        List<MedicalGraphAnalyticsService.MedicalPathway> pathways =
-                                graphAnalytics.findMedicalPathways(entity.getCui(), symptoms, MAX_PATH_DEPTH);
+                        List<MedicalAnalysisService.MedicalPathway> pathways =
+                                analysisService.findMedicalPathways(entity.getCui(), symptoms, MAX_PATH_DEPTH);
                         detectedPathways.addAll(pathways);
                     } catch (Exception e) {
                         logger.debug("Pathway analysis failed for entity {}: {}", entity.getCui(), e.getMessage());
@@ -72,9 +65,9 @@ public class TreatmentRecommendationEngine {
             }
 
             // שלב 4: חישוב הסיכונים - עם טיפול בשגיאות
-            MedicalGraphAnalyticsService.RiskPropagationResult riskPropagation = null;
+            MedicalAnalysisService.RiskPropagationResult riskPropagation = null;
             try {
-                riskPropagation = graphAnalytics.calculateRiskPropagation(userContext.getRiskFactors(), symptoms, RISK_DECAY_FACTOR);
+                riskPropagation = analysisService.calculateRiskPropagation(userContext.getRiskFactors(), symptoms, RISK_DECAY_FACTOR);
                 logger.info("Risk propagation analysis complete. Total risk: {:.3f}",
                         riskPropagation.getTotalRiskScore());
             } catch (Exception e) {
@@ -84,9 +77,9 @@ public class TreatmentRecommendationEngine {
             }
 
             // שלב 5: Medical Hub Analysis - עם טיפול בשגיאות
-            List<MedicalGraphAnalyticsService.MedicalHub> medicalHubs = new ArrayList<>();
+            List<MedicalAnalysisService.MedicalHub> medicalHubs = new ArrayList<>();
             try {
-                medicalHubs = graphAnalytics.findMedicalHubs(getAllUserEntities(userContext));
+                medicalHubs = analysisService.findMedicalHubs(getAllUserEntities(userContext));
                 logger.debug("Found {} medical hubs", medicalHubs.size());
             } catch (Exception e) {
                 logger.warn("Medical hub analysis failed: {}", e.getMessage());
@@ -150,9 +143,9 @@ public class TreatmentRecommendationEngine {
 
     //חישוב רמת הדחיפות
     private TreatmentPlan.UrgencyLevel calculateUrgencyLevel(Set<ExtractedSymptom> symptoms,
-                                                             List<MedicalGraphAnalyticsService.MedicalPathway> pathways,
-                                                             MedicalGraphAnalyticsService.RiskPropagationResult riskPropagation,
-                                                             List<MedicalGraphAnalyticsService.MedicalCommunity> medicalCommunities,
+                                                             List<MedicalAnalysisService.MedicalPathway> pathways,
+                                                             MedicalAnalysisService.RiskPropagationResult riskPropagation,
+                                                             List<MedicalAnalysisService.MedicalCommunity> medicalCommunities,
                                                              UserMedicalContext userContext) {
         logger.debug("Calculating urgency level based on symptoms, pathways, risk propagation, and medical communities");
 
@@ -194,17 +187,17 @@ public class TreatmentRecommendationEngine {
         return TreatmentPlan.UrgencyLevel.LOW;
     }
 
-    private String determineMainDiagnosis(List<MedicalGraphAnalyticsService.MedicalPathway> pathways,
-                                          List<MedicalGraphAnalyticsService.MedicalCommunity> communities,
-                                          List<MedicalGraphAnalyticsService.MedicalHub> hubs,
+    private String determineMainDiagnosis(List<MedicalAnalysisService.MedicalPathway> pathways,
+                                          List<MedicalAnalysisService.MedicalCommunity> communities,
+                                          List<MedicalAnalysisService.MedicalHub> hubs,
                                           Set<ExtractedSymptom> symptoms) {
 
         // 1. בדיקת מסלולים מסוכנים
         if (pathways != null && !pathways.isEmpty()) {
-            Optional<MedicalGraphAnalyticsService.MedicalPathway> mostRiskyPathway = pathways.stream()
+            Optional<MedicalAnalysisService.MedicalPathway> mostRiskyPathway = pathways.stream()
                     .max(Comparator.comparingDouble(p -> p.getRiskScore() * p.getConfidence()));
             if (mostRiskyPathway.isPresent()) {
-                MedicalGraphAnalyticsService.MedicalPathway pathway = mostRiskyPathway.get();
+                MedicalAnalysisService.MedicalPathway pathway = mostRiskyPathway.get();
                 return String.format("High-risk medical pathway detected: %s (Risk: %.2f, Confidence: %.2f)",
                         pathway.getExplanation(), pathway.getRiskScore(), pathway.getConfidence());
             }
@@ -212,8 +205,8 @@ public class TreatmentRecommendationEngine {
 
         // 2. בדיקת קהילות גדולות
         if (communities != null && !communities.isEmpty()) {
-            Optional<MedicalGraphAnalyticsService.MedicalCommunity> largestCommunity = communities.stream()
-                    .max(Comparator.comparingInt(MedicalGraphAnalyticsService.MedicalCommunity::getSize));
+            Optional<MedicalAnalysisService.MedicalCommunity> largestCommunity = communities.stream()
+                    .max(Comparator.comparingInt(MedicalAnalysisService.MedicalCommunity::getSize));
             if (largestCommunity.isPresent() && largestCommunity.get().getSize() > MIN_COMMUNITY_SIZE) {
                 return String.format("Complex medical interaction detected in community of %d entities (%s)",
                         largestCommunity.get().getSize(), largestCommunity.get().getDominantType());
@@ -264,10 +257,10 @@ public class TreatmentRecommendationEngine {
             TreatmentPlan.UrgencyLevel urgencyLevel,
             UserMedicalContext userContext,
             Set<ExtractedSymptom> symptoms,
-            List<MedicalGraphAnalyticsService.MedicalPathway> pathways,
-            MedicalGraphAnalyticsService.RiskPropagationResult riskPropagation,
-            List<MedicalGraphAnalyticsService.MedicalCommunity> communities,
-            List<MedicalGraphAnalyticsService.MedicalHub> hubs,
+            List<MedicalAnalysisService.MedicalPathway> pathways,
+            MedicalAnalysisService.RiskPropagationResult riskPropagation,
+            List<MedicalAnalysisService.MedicalCommunity> communities,
+            List<MedicalAnalysisService.MedicalHub> hubs,
             List<MedicalConnection> basicConnections) {
 
         TreatmentPlan plan = new TreatmentPlan();
@@ -395,8 +388,8 @@ public class TreatmentRecommendationEngine {
         return visits;
     }
 
-    private MedicalGraphAnalyticsService.RiskPropagationResult createFallbackRiskPropagation() {
-        MedicalGraphAnalyticsService.RiskPropagationResult result = new MedicalGraphAnalyticsService.RiskPropagationResult();
+    private MedicalAnalysisService.RiskPropagationResult createFallbackRiskPropagation() {
+        MedicalAnalysisService.RiskPropagationResult result = new MedicalAnalysisService.RiskPropagationResult();
         result.setSymptomRiskScores(new HashMap<>());
         result.setPropagationPaths(new ArrayList<>());
         result.setTotalRiskScore(0.0);
@@ -405,10 +398,10 @@ public class TreatmentRecommendationEngine {
 
     //בניית הסבר למשתמש
     private String buildReasoning(TreatmentPlan.UrgencyLevel urgencyLevel,
-                                  List<MedicalGraphAnalyticsService.MedicalPathway> pathways,
-                                  MedicalGraphAnalyticsService.RiskPropagationResult riskPropagation,
-                                  List<MedicalGraphAnalyticsService.MedicalCommunity> communities,
-                                  List<MedicalGraphAnalyticsService.MedicalHub> hubs) {
+                                  List<MedicalAnalysisService.MedicalPathway> pathways,
+                                  MedicalAnalysisService.RiskPropagationResult riskPropagation,
+                                  List<MedicalAnalysisService.MedicalCommunity> communities,
+                                  List<MedicalAnalysisService.MedicalHub> hubs) {
         StringBuilder reasoning = new StringBuilder();
 
         //הסבר בסיסי על רמת הדחיפות
@@ -438,8 +431,8 @@ public class TreatmentRecommendationEngine {
         }
 
         if (!hubs.isEmpty()) {
-            Optional<MedicalGraphAnalyticsService.MedicalHub> topHub = hubs.stream()
-                    .max(Comparator.comparingDouble(MedicalGraphAnalyticsService.MedicalHub::getCentralityScore));
+            Optional<MedicalAnalysisService.MedicalHub> topHub = hubs.stream()
+                    .max(Comparator.comparingDouble(MedicalAnalysisService.MedicalHub::getCentralityScore));
             if (topHub.isPresent() && topHub.get().getCentralityScore() > MIN_CENTRALITY_SCORE) {
                 reasoning.append(String.format("Key medical hub identified: %s (influence: %s). ",
                         topHub.get().getName(), topHub.get().getInfluenceLevel()));
@@ -454,8 +447,8 @@ public class TreatmentRecommendationEngine {
 
     //פעולות מיידיות
     private List<ImmediateAction> generateImmediateActions(TreatmentPlan.UrgencyLevel urgencyLevel,
-                                                           List<MedicalGraphAnalyticsService.MedicalPathway> pathways,
-                                                           List<MedicalGraphAnalyticsService.MedicalHub> hubs,
+                                                           List<MedicalAnalysisService.MedicalPathway> pathways,
+                                                           List<MedicalAnalysisService.MedicalHub> hubs,
                                                            UserMedicalContext context) {
         List<ImmediateAction> actions = new ArrayList<>();
 
@@ -470,7 +463,7 @@ public class TreatmentRecommendationEngine {
         }
 
         // פעולות בהתבסס על Medical Hubs
-        for (MedicalGraphAnalyticsService.MedicalHub hub : hubs) {
+        for (MedicalAnalysisService.MedicalHub hub : hubs) {
             if (hub.getCentralityScore() > HIGH_CENTRALITY_THRESHOLD && "Medications".equals(hub.getType())) {
                 ImmediateAction hubAction = new ImmediateAction();
                 hubAction.setType(ImmediateAction.ActionType.MONITOR_SYMPTOMS);
@@ -509,7 +502,7 @@ public class TreatmentRecommendationEngine {
     }
 
     //המרת מסלולים לקשרים רפואיים
-    private List<MedicalConnection> convertPathwaysToConnections(List<MedicalGraphAnalyticsService.MedicalPathway> pathways) {
+    private List<MedicalConnection> convertPathwaysToConnections(List<MedicalAnalysisService.MedicalPathway> pathways) {
         return pathways.stream()
                 .map(pathway -> {
                     MedicalConnection connection = new MedicalConnection();
@@ -535,9 +528,9 @@ public class TreatmentRecommendationEngine {
     private List<MedicalConnection> findBasicConnections(UserMedicalContext context, List<ExtractedSymptom> symptoms) {
         List<MedicalConnection> connections = new ArrayList<>();
         try {
-            connections.addAll(pathfindingService.findDiseaseSymptoms(context.getActiveDiseases(), symptoms));
-            connections.addAll(pathfindingService.findMedicationSideEffects(context.getCurrentMedications(), symptoms));
-            connections.addAll(pathfindingService.findPossibleTreatments(symptoms));
+            connections.addAll(analysisService.findDiseaseSymptoms(context.getActiveDiseases(), symptoms));
+            connections.addAll(analysisService.findMedicationSideEffects(context.getCurrentMedications(), symptoms));
+            connections.addAll(analysisService.findPossibleTreatments(symptoms));
         } catch (Exception e) {
             logger.warn("Error finding basic connections: {}", e.getMessage(), e);
         }
@@ -557,8 +550,8 @@ public class TreatmentRecommendationEngine {
     }
 
     private List<MedicalTest> generateRecommendedTests(Set<ExtractedSymptom> symptoms,
-                                                       List<MedicalGraphAnalyticsService.MedicalPathway> pathways,
-                                                       List<MedicalGraphAnalyticsService.MedicalCommunity> communities,
+                                                       List<MedicalAnalysisService.MedicalPathway> pathways,
+                                                       List<MedicalAnalysisService.MedicalCommunity> communities,
                                                        TreatmentPlan.UrgencyLevel urgencyLevel) {
         Set<MedicalTest.TestType> recommendedTests = new HashSet<>();
 
@@ -609,8 +602,8 @@ public class TreatmentRecommendationEngine {
     }
 
     private List<DoctorVisit> generateDoctorVisits(TreatmentPlan.UrgencyLevel urgencyLevel,
-                                                   List<MedicalGraphAnalyticsService.MedicalCommunity> communities,
-                                                   List<MedicalGraphAnalyticsService.MedicalHub> hubs) {
+                                                   List<MedicalAnalysisService.MedicalCommunity> communities,
+                                                   List<MedicalAnalysisService.MedicalHub> hubs) {
         List<DoctorVisit> visits = new ArrayList<>();
 
         String urgency = switch (urgencyLevel) {
@@ -649,10 +642,10 @@ public class TreatmentRecommendationEngine {
     }
 
     private Map<String, Object> buildAdditionalInfo(UserMedicalContext userContext,
-                                                    List<MedicalGraphAnalyticsService.MedicalPathway> pathways,
-                                                    MedicalGraphAnalyticsService.RiskPropagationResult riskPropagation,
-                                                    List<MedicalGraphAnalyticsService.MedicalCommunity> communities,
-                                                    List<MedicalGraphAnalyticsService.MedicalHub> hubs) {
+                                                    List<MedicalAnalysisService.MedicalPathway> pathways,
+                                                    MedicalAnalysisService.RiskPropagationResult riskPropagation,
+                                                    List<MedicalAnalysisService.MedicalCommunity> communities,
+                                                    List<MedicalAnalysisService.MedicalHub> hubs) {
         Map<String, Object> info = new HashMap<>();
 
         //מידע בסיסי
@@ -670,7 +663,7 @@ public class TreatmentRecommendationEngine {
         //מסלולים משמעותיים
         List<String> significantPathways = pathways.stream()
                 .filter(p -> p.getRiskScore() > MIN_PATHWAY_CONFIDENCE)
-                .map(MedicalGraphAnalyticsService.MedicalPathway::getExplanation)
+                .map(MedicalAnalysisService.MedicalPathway::getExplanation)
                 .collect(Collectors.toList());
         info.put("significantPathways", significantPathways);
 
@@ -685,7 +678,7 @@ public class TreatmentRecommendationEngine {
         // פירוט קהילות
         List<String> communityDescriptions = communities.stream()
                 .limit(MAX_COMMUNITIES_TO_RETURN)
-                .map(MedicalGraphAnalyticsService.MedicalCommunity::getDescription)
+                .map(MedicalAnalysisService.MedicalCommunity::getDescription)
                 .collect(Collectors.toList());
         info.put("medicalCommunities", communityDescriptions);
 

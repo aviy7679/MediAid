@@ -1,6 +1,6 @@
 package com.example.mediaid.api;
 
-import com.example.mediaid.bl.emergency.MedicalGraphAnalyticsService;
+import com.example.mediaid.bl.emergency.MedicalAnalysisService;
 import com.example.mediaid.bl.emergency.SymptomAnalysisService;
 import com.example.mediaid.bl.emergency.TreatmentRecommendationEngine;
 import com.example.mediaid.dto.emergency.ExtractedSymptom;
@@ -39,7 +39,7 @@ public class RecommendationController {
     private TreatmentRecommendationEngine treatmentEngine;
 
     @Autowired
-    private MedicalGraphAnalyticsService graphAnalyticsService;
+    private MedicalAnalysisService analysisService;
 
     @Autowired
     private JwtUtil jwtUtil;
@@ -108,20 +108,20 @@ public class RecommendationController {
             String analysisType;
 
             logger.info("Using ADVANCED Graph-Based Analysis Engine");
-                analysisType = "advanced_graph_thinking";
+            analysisType = "advanced_graph_thinking";
 
-                long startTime = System.currentTimeMillis();
-                treatmentPlan = treatmentEngine.analyzeSituation(userId, allExtractedSymptoms);
-                long analysisTime = System.currentTimeMillis() - startTime;
+            long startTime = System.currentTimeMillis();
+            treatmentPlan = treatmentEngine.analyzeSituation(userId, allExtractedSymptoms);
+            long analysisTime = System.currentTimeMillis() - startTime;
 
-                logger.info("Advanced analysis completed in {}ms", analysisTime);
+            logger.info("Advanced analysis completed in {}ms", analysisTime);
 
-                // הוספת מידע על זמן הניתוח למידע הנוסף
-                if (treatmentPlan.getAdditionalInfo() == null) {
-                    treatmentPlan.setAdditionalInfo(new HashMap<>());
-                }
-                treatmentPlan.getAdditionalInfo().put("analysisTimeMs", analysisTime);
-                treatmentPlan.getAdditionalInfo().put("engineType", "advanced_graph_thinking");
+            // הוספת מידע על זמן הניתוח למידע הנוסף
+            if (treatmentPlan.getAdditionalInfo() == null) {
+                treatmentPlan.setAdditionalInfo(new HashMap<>());
+            }
+            treatmentPlan.getAdditionalInfo().put("analysisTimeMs", analysisTime);
+            treatmentPlan.getAdditionalInfo().put("engineType", "advanced_graph_thinking");
 
 
             // שלב 3: בניית תשובה מקיפה
@@ -271,9 +271,9 @@ public class RecommendationController {
             Map<String, Object> graphAnalysisResults = new HashMap<>();
 
             // 1. Advanced Pathway Analysis
-            List<MedicalGraphAnalyticsService.MedicalPathway> pathways = new ArrayList<>();
+            List<MedicalAnalysisService.MedicalPathway> pathways = new ArrayList<>();
             for (var entity : allUserEntities) {
-                var entityPathways = graphAnalyticsService.findMedicalPathways(
+                var entityPathways = analysisService.findMedicalPathways(
                         entity.getCui(), symptoms, maxPathDepth);
                 pathways.addAll(entityPathways);
             }
@@ -282,20 +282,20 @@ public class RecommendationController {
 
             // 2. Community Detection (אם מתבקש)
             if (includeCommunities) {
-                var communities = graphAnalyticsService.detectMedicalCommunities(allUserEntities);
+                var communities = analysisService.detectMedicalCommunities(allUserEntities);
                 graphAnalysisResults.put("medicalCommunities", communities);
                 logger.info("Detected {} medical communities", communities.size());
             }
 
             // 3. Risk Propagation Analysis
-            var riskPropagation = graphAnalyticsService.calculateRiskPropagation(
+            var riskPropagation = analysisService.calculateRiskPropagation(
                     userContext.getRiskFactors(), symptoms, RISK_DECAY_FACTOR);
             graphAnalysisResults.put("riskPropagation", riskPropagation);
             logger.info("Risk propagation: {:.3f} total risk", riskPropagation.getTotalRiskScore());
 
             // 4. Medical Hub Analysis (אם מתבקש)
             if (includeHubs) {
-                var medicalHubs = graphAnalyticsService.findMedicalHubs(allUserEntities);
+                var medicalHubs = analysisService.findMedicalHubs(allUserEntities);
                 graphAnalysisResults.put("medicalHubs", medicalHubs);
                 logger.info("Identified {} medical hubs", medicalHubs.size());
             }
